@@ -246,13 +246,15 @@ end)
 ---------------------------------------------------------------------------
 -- 2. Experience message
 ---------------------------------------------------------------------------
-local xpPattern
+local xpPattern, xpFirst
 local function XPPattern()
     if xpPattern ~= nil then return xpPattern end
     local fmt = COMBATLOG_XPGAIN_FIRSTPERSON   -- "%s dies, you gain %d experience."
     if type(fmt) ~= "string" then xpPattern = false return false end
+    local si, di = fmt:find("%s", 1, true), fmt:find("%d", 1, true)
+    xpFirst = si and di and di < si   -- the number before the name (other languages)
     local p = fmt:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
-    p = p:gsub("%%s", "(.+)", 1):gsub("%%d", "%%d+")
+    p = p:gsub("%%s", "(.+)", 1):gsub("%%d", "(%%d+)", 1)
     xpPattern = "^" .. p
     return xpPattern
 end
@@ -261,8 +263,13 @@ M:On("CHAT_MSG_COMBAT_XP_GAIN", function(msg)
     msg = Plain(msg)
     local p = XPPattern()
     if type(msg) ~= "string" or not p then return end
-    local name = msg:match(p)
-    if name then xpSeen[name] = GetTime() Count(name, nil, "xp") end
+    local a, b = msg:match(p)
+    local name, xp = a, b
+    if xpFirst then name, xp = b, a end
+    if name then
+        xpSeen[name] = GetTime() Count(name, nil, "xp")
+        if mod.OnKillXP then mod.OnKillXP(tonumber(xp)) end
+    end
 end)
 
 ---------------------------------------------------------------------------

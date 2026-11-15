@@ -394,6 +394,19 @@ function mod.OnKill(name)
     if run then run.k = (run.k or 0) + 1 end
 end
 
+-- XP from a kill (the "X dies, you gain N experience." message): kept on the
+-- instance run for XP/Kill (run.kx)
+function mod.OnKillXP(xp)
+    if not xp or xp <= 0 or not run or not M.db.trackLeveling then return end
+    run.kx = (run.kx or 0) + xp
+end
+
+-- XP/Kill of a run: kill XP / kills (nil when unknown)
+function mod.RunXPPerKill(r)
+    if not r or not r.kx or (r.k or 0) <= 0 then return nil end
+    return r.kx / r.k
+end
+
 -- an unknown kill turned out to be <name> (Kills.lua): move one detail count over
 function mod.RenameKill(old, name)
     local c = mod.Char()

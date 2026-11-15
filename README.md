@@ -256,8 +256,8 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     only the highest level can be "(current)".
   - Zones (a character or the account): favourite zone by time and by kills; per main zone
     (a town counts for its zone) time (hh:mm:ss), NPC kills, quests and XP gain; per
-    instance visit Lvl In / Lvl Out, time, kills, quests, XP gain (incl. quest rewards), XP % (of the XP the entry level needed, also when leveling up inside),
-    XP/hr, profession skill-ups (Prof.) and money (tooltip: each profession's skill-ups, zone of the entrance, dates, per-hour values, visits in the
+    instance visit Lvl In / Lvl Out, time, kills, XP/Kill (XP from kills / kills), quests, XP gain (incl. quest rewards), XP % (of the XP the entry level needed, also when leveling up inside),
+    XP/hr and money in gold and silver (tooltip: XP/Kill, profession skill-ups and each profession's skill-ups, zone of the entrance, dates, per-hour values, visits in the
     last 60 minutes). The instance ID is hidden from addons on WoW: Forever, so every
     entry is a new row, numbered #1, #2; re-entering an instance left within 3 hours
     without a reset asks whether it is the same ("Same instance" merges the rows); after

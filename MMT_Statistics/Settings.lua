@@ -794,6 +794,15 @@ M.Page = function(_, page)
         { "XP Gain", right = PAGE_W - 8, w = 90 },
     }, ZONE_ROWS)
     zoneGrid:SetPoint("TOPLEFT", 0, zy)
+    -- money in the instance list: gold and silver with their coin icons
+    local GOLD_ICON = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+    local SILVER_ICON = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t"
+    local function MoneyGS(copper)
+        copper = math.floor(copper or 0)
+        local g, s = math.floor(copper / 10000), math.floor(copper / 100) % 100
+        if g > 0 then return ("%d%s %d%s"):format(g, GOLD_ICON, s, SILVER_ICON) end
+        return ("%d%s"):format(s, SILVER_ICON)
+    end
     local instGrid = Grid(zp, {
         { "Instance Name", x = 8, w = 116 },
         { "ID", right = 168, w = 38 },
@@ -801,12 +810,12 @@ M.Page = function(_, page)
         { "Lvl Out", right = 264, w = 46 },
         { "Time Spent", right = 330, w = 62 },
         { "Kills", right = 372, w = 38 },
-        { "Quests", right = 418, w = 44 },
-        { "XP Gain", right = 476, w = 56 },
-        { "XP %", right = 520, w = 42 },
-        { "XP/hr", right = 568, w = 46 },
-        { "Prof.", right = 606, w = 36 },
-        { "Money", right = PAGE_W - 8, w = 82 },
+        { "XP/Kill", right = 424, w = 48 },
+        { "Quests", right = 470, w = 44 },
+        { "XP Gain", right = 528, w = 56 },
+        { "XP %", right = 570, w = 40 },
+        { "XP/hr", right = 618, w = 46 },
+        { "Money", right = PAGE_W - 8, w = 66 },
     }, ZONE_ROWS)
     instGrid:SetPoint("TOPLEFT", 0, zy)
     local zoneNote = UI.Label(zp, "")
@@ -858,6 +867,7 @@ M.Page = function(_, page)
                 local r = e.r
                 local perHour = (r.t or 0) >= 60 and (r.xp or 0) / (r.t / 3600) or nil
                 local share = mod.RunXPShare(r)
+                local perKill = mod.RunXPPerKill(r)
                 local pf, plist = mod.ProfessionSum(r.pr)
                 rows[#rows + 1] = {
                     cells = { r.n or ("Instance " .. tostring(r.map)), r.uid and tostring(r.uid) or ("#" .. e.nr),
@@ -865,8 +875,9 @@ M.Page = function(_, page)
                         (r.lvOut and not (r.leave == nil and e.key == me)) and tostring(r.lvOut)
                             or ((r.leave == nil and e.key == me) and (mod.LevelNow() .. "*") or ""),
                         mod.Clock(r.t),
-                        Num(r.k), Num(r.q or 0), Num(r.xp), share and ("%d%%"):format(math.floor(share + 0.5)) or "-",
-                        perHour and Num(perHour) or "-", Num(pf), mod.Money(r.cp or 0) },
+                        Num(r.k), perKill and Num(perKill) or "-", Num(r.q or 0), Num(r.xp),
+                        share and ("%d%%"):format(math.floor(share + 0.5)) or "-",
+                        perHour and Num(perHour) or "-", MoneyGS(r.cp or 0) },
                     tip = function(t)
                         t:SetText((r.n or "Instance") .. (r.zn and (" (" .. r.zn .. ")") or ""), 1, 1, 1)
                         local lvOut = r.lvOut
@@ -883,6 +894,7 @@ M.Page = function(_, page)
                         end
                         t:AddDoubleLine("Money gained:", mod.Money(r.cp or 0) .. (cpH and ("  (%s / hr)"):format(mod.Money(cpH)) or ""), 0.7, 0.7, 0.7, 1, 1, 1)
                         t:AddDoubleLine("Kills:", Num(r.k or 0), 0.7, 0.7, 0.7, 1, 1, 1)
+                        t:AddDoubleLine("XP/Kill:", perKill and (Num(perKill) .. ("  (%s XP from kills)"):format(Num(r.kx))) or "-", 0.7, 0.7, 0.7, 1, 1, 1)
                         t:AddDoubleLine("Quests completed:", Num(r.q or 0), 0.7, 0.7, 0.7, 1, 1, 1)
                         t:AddDoubleLine("Profession skill-ups:", Num(pf), 0.7, 0.7, 0.7, 1, 1, 1)
                         if #plist > 0 then

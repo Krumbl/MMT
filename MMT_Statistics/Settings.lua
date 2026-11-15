@@ -857,6 +857,7 @@ M.Page = function(_, page)
             for _, e in ipairs(runs) do
                 local r = e.r
                 local perHour = (r.t or 0) >= 60 and (r.xp or 0) / (r.t / 3600) or nil
+                local share = mod.RunXPShare(r)
                 local pf, plist = mod.ProfessionSum(r.pr)
                 rows[#rows + 1] = {
                     cells = { r.n or ("Instance " .. tostring(r.map)), r.uid and tostring(r.uid) or ("#" .. e.nr),

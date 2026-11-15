@@ -321,6 +321,21 @@ local function AllDone(data, members, id)
     return holders > 0 and doneCount == holders, holders
 end
 
+-- one objective done by every member on the quest (or who completed it)
+local function ObjectiveDone(data, members, id, oi)
+    local holders, doneCount = 0, 0
+    for _, key in ipairs(members) do
+        local mq = data[key] and data[key].quests[id]
+        if mq then
+            holders = holders + 1
+            if select(2, Progress(mq, oi)) then doneCount = doneCount + 1 end
+        elseif mod.CompletedBy(key, id) then
+            holders, doneCount = holders + 1, doneCount + 1
+        end
+    end
+    return holders > 0 and doneCount == holders
+end
+
 -- entries: { kind, key (collapse key), text, indent, collapsible, collapsed, questID, member, ... }
 function mod.BuildEntries()
     local me = MMT.PlayerFull()
@@ -433,9 +448,12 @@ function mod.BuildEntries()
                         local o = objectives[oi]
                         local okey = "o:" .. id .. ":" .. oi
                         local otext = o and o.text or "Complete the quest"
-                        Add({ kind = "objective", key = okey, text = otext, indent = 2, collapsible = true,
-                            collapsed = collapsed[okey], questID = id })
-                        if not collapsed[okey] then
+                        -- done by the whole team: only the objective line, "(Ready)"
+                        local oready = o and cfg.objectiveReady and ObjectiveDone(data, members, id, oi)
+                        if oready then otext = GREEN .. otext .. "|r  " .. GREEN .. "(Ready)|r" end
+                        Add({ kind = "objective", key = okey, text = otext, indent = 2, collapsible = not oready,
+                            collapsed = collapsed[okey], questID = id, ready = oready or nil })
+                        if not collapsed[okey] and not oready then
                             for _, key in ipairs(members) do
                                 local rec = data[key]
                                 local mq = rec and rec.quests[id]

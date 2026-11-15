@@ -399,7 +399,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   ("3/8", "done", "completed" when that character already turned it in, "not on quest").
   A quest done on every character that has it shows only its name with "(Ready)", so
   the tracker gets shorter the more quests are ready to turn in ("(Ready for you)" while
-  others still work on it). With only your character shown, it is a classic tracker: the
+  others still work on it). The same for a single objective: one of several monsters to
+  kill that every character on the quest has done shows as one line with "(Ready)"
+  ("Collapse objectives the team has done", on by default). With only your character shown, it is a classic tracker: the
   progress right behind each objective, done objectives in green. Item objectives the game
   counts lower than the bags hold (seen after trading quest items: the game counted only
   the new stack) take the number of items of that name in the bags, up to the amount

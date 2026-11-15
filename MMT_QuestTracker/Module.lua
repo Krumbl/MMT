@@ -51,6 +51,7 @@ local M = MMT.NewModule({
         onlyWatched   = false,    -- only quests you track in the quest log
         teamQuests    = true,     -- also quests only teammates have
         showMissing   = true,     -- members who don't have the quest
+        objectiveReady = true,    -- an objective done by the whole team: one "(Ready)" line
         showOffline   = false,    -- members who are offline (last known progress)
         classColors   = true,     -- member names in class colour
         levelColors   = true,     -- [level] in quest difficulty colour

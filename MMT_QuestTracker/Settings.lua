@@ -64,6 +64,8 @@ M.Page = function(_, page)
     L:Check("Include quests only teammates have", gtq, stq, "Quests your current character doesn't have, but someone in the team does.")
     local gm, sm = Opt("showMissing")
     L:Check("Show members not on the quest", gm, sm, "Adds \"not on quest\" for team members who don't have it. Members who already completed it always show \"completed\".")
+    local gor, sor = Opt("objectiveReady")
+    L:Check("Collapse objectives the team has done", gor, sor, "An objective that every member on the quest has done (e.g. one of several monsters to kill) shows as one line with \"(Ready)\", without the member rows, like a quest the whole team has done.")
     local go, so = Opt("showOffline")
     L:Check("Include offline members", go, so, "Shows their last known progress.")
     L:Check("Class colours for names", Opt("classColors"))
@@ -225,8 +227,8 @@ function M.Report(_, add)
         tostring(M.db.announce), tostring(M.db.autoShare), tostring(M.db.announceNoShare), tostring(M.db.abortTeam), tostring(M.db.announceStarter)))
     local watchedN = 0
     for _ in pairs(mod.ownWatched or {}) do watchedN = watchedN + 1 end
-    add(("tracker: onlyWatched=%s teamQuests=%s showMissing=%s focusZone=%s tracked=%d"):format(
-        tostring(M.db.onlyWatched), tostring(M.db.teamQuests), tostring(M.db.showMissing),
+    add(("tracker: onlyWatched=%s teamQuests=%s showMissing=%s objectiveReady=%s focusZone=%s tracked=%d"):format(
+        tostring(M.db.onlyWatched), tostring(M.db.teamQuests), tostring(M.db.showMissing), tostring(M.db.objectiveReady),
         MMT.Repr(M.store.focusZone), watchedN))
     add(("other trackers: hideOthers=%s  %s"):format(tostring(M.db.hideOthers), mod.OtherTrackersReport()))
     add(mod.ArrangeReport())

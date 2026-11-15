@@ -8,7 +8,10 @@
 local _, ns = ...
 
 local POOR = (Enum and Enum.ItemQuality and Enum.ItemQuality.Poor) or 0
-local BATCH, INTERVAL = 10, 0.2
+-- The server drops sales that come too fast (the item just stays in the bag),
+-- so items go out a few at a time, and the bags are checked again after each
+-- pass: what is still there is sold in another pass (at most MAX_PASSES).
+local BATCH, INTERVAL, MAX_PASSES, PASS_WAIT = 2, 0.2, 6, 1
 
 local merchantOpen = false
 local ticker
@@ -115,29 +118,52 @@ end
 
 ownTicker = function() return ticker ~= nil end
 
+local function Totals(list)
+    local n, v = 0, 0
+    for _, item in ipairs(list) do n, v = n + item.count, v + item.value end
+    return n, v
+end
+
 local function SellGrey()
     if ticker then return end
     local list = CollectJunk()
     if #list == 0 then return end
+    local startN, startV = Totals(list)
+    local pass, index = 1, 1
 
-    local index, count, value = 1, 0, 0
-    ticker = C_Timer.NewTicker(INTERVAL, function(self)
+    local function Finish()
+        ticker = nil
+        -- sold = what was there at the start and is gone now (dropped sales don't count)
+        local leftN, leftV = Totals(CollectJunk())
+        local n, v = math.max(0, startN - leftN), math.max(0, startV - leftV)
+        if pass > 1 then ns.Debug("Vendor: %d pass(es), %d item(s) left unsold", pass, leftN) end
+        Report(n, v)
+    end
+
+    local function Step(self)
         for _ = 1, BATCH do
+            if not merchantOpen then self:Cancel() Finish() return end
             local item = list[index]
-            if not item or not merchantOpen then
+            if not item then
+                -- pass done: look again in a moment (locks clear, dropped sales show)
                 self:Cancel()
-                ticker = nil
-                Report(count, value)
+                ticker = C_Timer.NewTimer(PASS_WAIT, function()
+                    local again = merchantOpen and pass < MAX_PASSES and CollectJunk() or {}
+                    if #again == 0 then Finish() return end
+                    pass, list, index = pass + 1, again, 1
+                    ns.Debug("Vendor: pass %d, %d item(s) still to sell", pass, #again)
+                    ticker = C_Timer.NewTicker(INTERVAL, Step)
+                end)
                 return
             end
             index = index + 1
-            if C_Container.GetContainerItemID(item.bag, item.slot) == item.itemID then
+            local info = C_Container.GetContainerItemInfo(item.bag, item.slot)
+            if info and info.itemID == item.itemID and not info.isLocked then
                 C_Container.UseContainerItem(item.bag, item.slot)
-                count = count + item.count
-                value = value + item.value
             end
         end
-    end)
+    end
+    ticker = C_Timer.NewTicker(INTERVAL, Step)
 end
 
 local function Repair()

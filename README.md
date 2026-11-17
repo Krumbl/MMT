@@ -344,10 +344,12 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   The "keep free bag slots" reserve doesn't apply to quest items: they are given even
   into the last free slot, and with full bags they are still tried (they may stack).
   Items are recognised as quest items by the loot window or by their item class.
-  "Speed up assignment by caching quest items" (on by default): the master looter keeps a
+  "Speed up assignment by caching" (on by default): the master looter keeps a
   snapshot of every member's quest items, refreshed every 2 minutes and after each quest
-  item it gives, so no question to the team is needed while looting. A missing or old
-  snapshot falls back to asking the team as before.
+  item it gives, so no question to the team is needed while looting. Members with full
+  bags (free slots at most the reserve + 2) also send which of their stacks can still take
+  items whenever their bags change, so a loot window with someone full doesn't wait for
+  their answers either. A missing or old snapshot falls back to asking the team as before.
   "No role wants it": leave for manual assignment, give to the master looter, or
   "Round robin to the team" (in turns, keeping the reserve; not for quest items or
   Bind on Pickup). Only members the game offers as receivers count (in the group, online

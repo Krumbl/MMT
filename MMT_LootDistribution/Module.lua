@@ -58,7 +58,7 @@ local M = MMT.NewModule({
         questRR      = true,       -- quest items round robin across the team
         questMLLast  = true,       -- ... with the master looter's turn last (else in team order)
         questNobody  = "LOOT",     -- a quest item no member needs any more: LOOT (roles / round robin, like other items) | LEAVE
-        questCache   = true,       -- quest needs from a cache refreshed every 2 min instead of asking per loot window
+        questCache   = true,       -- quest needs (refreshed every 2 min) and the stack room of full bags from caches instead of asking per loot window
         worthOn      = false,      -- never-loot items worth at least worthMin are handed out anyway
         worthMin     = 10000,      -- copper (sell price x the slot's count)
         worthStack   = false,      -- stackable items: a full stack's price instead
@@ -307,7 +307,9 @@ local function FreeSlots(key)
     return s.free
 end
 
-local function NoteGiven(key)
+local NoteStackGiven   -- (stack room cache, below)
+local function NoteGiven(key, link)
+    if NoteStackGiven then NoteStackGiven(key, link) end
     local g = given[key]
     if not g or (MMT.status[key] and MMT.status[key].last > g.time) then g = { count = 0 } end
     g.count, g.time = g.count + 1, GetTime()
@@ -434,19 +436,140 @@ M:Listen("TEAM_MESSAGE", function(key, sender, text)
     a.finish()
 end)
 
+---------------------------------------------------------------------------
+-- Stack room cache (same option as the quest item cache): after
+-- the master looter's first stack room question (RMQ), a member whose bags are
+-- full (free slots <= reserve + 2) sends what its stacks can still take
+-- (RMS:<itemID>x<spare>;...) by itself whenever its bags change, for 10
+-- minutes; with room again it sends "RMS:" once. A loot window then uses that
+-- instead of asking (while the members still push: until 30 s before the 10
+-- minutes after the last question run out), and only asks members without one.
+---------------------------------------------------------------------------
+local STACK_PUSH_FOR = 600
+local lastStackAsk, windowStart = -1e9, -1e9   -- last question; start of the members' unbroken push time
+local scache = {}   -- [key] = { t, spare = { [itemID] = count } }
+local stackStats = { asked = 0, snapshots = 0, hits = 0 }
+
+local function StackCacheOn() return M.enabled and M.db.questCache and IsInGroup() end
+
+-- this client's stacks that can take more: "2592x18;4306x3" ("" with room in the bags)
+local function OwnStackSnapshot()
+    local free = MMT.UpdateOwnStatus().free
+    if free and free > (M.db.reserve or 0) + 2 then return "" end
+    local spare = {}
+    for bag = 0, MMT.BAGS do
+        for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local id = info and info.itemID
+            if id then
+                local max = MaxStack(id)
+                if max > 1 and (info.stackCount or 1) < max then
+                    spare[id] = (spare[id] or 0) + max - (info.stackCount or 1)
+                end
+            end
+        end
+    end
+    local ids = {}
+    for id in pairs(spare) do ids[#ids + 1] = id end
+    table.sort(ids)
+    local parts = {}
+    for _, id in ipairs(ids) do parts[#parts + 1] = id .. "x" .. spare[id] end
+    return table.concat(parts, ";")
+end
+
+-- every client: push changes to whoever asked about stack room (the master looter)
+local stackAsker, stackAskedAt, stackPushed = nil, -1e9, nil
+local function PushStacks(force)
+    if not stackAsker or GetTime() - stackAskedAt > STACK_PUSH_FOR then return end
+    local snap = OwnStackSnapshot()
+    if not force and snap == stackPushed then return end
+    stackPushed = snap
+    MMT.SendLong("RMS:" .. snap, MMT.WhisperTarget(stackAsker), "NORMAL")
+end
+local stackSoon = false
+M:On("BAG_UPDATE_DELAYED", function()
+    if stackSoon or not stackAsker then return end
+    stackSoon = true
+    C_Timer.After(1, function() stackSoon = false PushStacks() end)
+end)
+M:Listen("TEAM_MESSAGE", function(key, sender, text)
+    if text:match("^RMQ:") then
+        if not M.db.questCache then return end
+        stackAsker, stackAskedAt = key, GetTime()
+        PushStacks(true)   -- asked: the cache had no fresh entry, so refresh it
+        return
+    end
+    local snap = text:match("^RMS:(.*)$")
+    if not snap then return end
+    local spare = {}
+    for id, n in snap:gmatch("(%d+)x(%d+)") do spare[tonumber(id)] = tonumber(n) end
+    scache[key] = { t = GetTime(), spare = spare, empty = snap == "" }
+    stackStats.snapshots = stackStats.snapshots + 1
+    M:Debug("stack cache: %s %s", MMT.Repr(key), snap == "" and "has room in the bags" or ("stacks " .. snap))
+end)
+
+-- a stackable item given to a member uses up its cached stack room
+NoteStackGiven = function(key, link)
+    local e = scache[key]
+    local id = e and link and tonumber(tostring(link):match("item:(%d+)"))
+    if id and e.spare[id] then
+        e.spare[id] = e.spare[id] - 1
+        if e.spare[id] <= 0 then e.spare[id] = nil end
+    end
+end
+
+-- the cached answer for a member, or nil (no fresh entry)
+local function CachedStackRoom(key, items)
+    local e = scache[key]
+    if not (StackCacheOn() and e and e.t >= windowStart and GetTime() - lastStackAsk < STACK_PUSH_FOR - 30) then return nil end
+    local room = {}
+    for _, item in ipairs(items) do
+        if (e.spare[item.id] or 0) >= (item.qty or 1) then room[item.id] = true end
+    end
+    return room
+end
+
+function mod.StackCacheReport(add)
+    local parts = {}
+    for key, e in pairs(scache) do
+        local n = 0
+        for _ in pairs(e.spare) do n = n + 1 end
+        parts[#parts + 1] = ("%s %s %ds ago"):format(MMT.Repr(key), e.empty and "room" or (n .. " stack(s)"), math.floor(GetTime() - e.t))
+    end
+    add(("stack cache: on=%s asked=%d snapshots=%d used=%d  %s"):format(tostring(M.db.questCache),
+        stackStats.asked, stackStats.snapshots, stackStats.hits, #parts > 0 and table.concat(parts, ", ") or "(empty)"))
+end
+
 -- asks the team about stackable items when someone is short of free slots
 local function AskStackRoom(items, done)
     wipe(stackRoom)
     stackRoom.qty = {}
     for _, item in ipairs(items) do stackRoom.qty[item.id] = item.qty end
-    local waitFor = {}
+    local waitFor, fromCache = {}, 0
     for _, key in ipairs(MMT.SortedMembers()) do
         if not MMT.IsSelf(key) and MMT.IsOnline(key) then
             local free = FreeSlots(key)
-            if free == nil or free <= M.db.reserve then waitFor[#waitFor + 1] = key end
+            if free == nil or free <= M.db.reserve then
+                local cached = #items > 0 and CachedStackRoom(key, items)
+                if cached then
+                    stackRoom[key] = cached
+                    fromCache = fromCache + 1
+                else
+                    waitFor[#waitFor + 1] = key
+                end
+            end
         end
     end
+    if fromCache > 0 then
+        stackStats.hits = stackStats.hits + 1
+        M:Debug("stack cache: used for %d member(s), asking %d", fromCache, #waitFor)
+    end
     if #items == 0 or #waitFor == 0 then done() return end
+    stackStats.asked = stackStats.asked + 1
+    -- the members push for 10 minutes after this; entries from before it are kept
+    -- only while the old push window is still open
+    if GetTime() - lastStackAsk >= STACK_PUSH_FOR - 30 then windowStart = GetTime() end
+    lastStackAsk = GetTime()
     local ask = tostring(math.random(100000, 999999))
     local finished = false
     roomAsks[ask] = { items = items, waitFor = waitFor, finish = function()
@@ -460,6 +583,7 @@ local function AskStackRoom(items, done)
     MMT.SendToTeam(("RMQ:%s:%s"):format(ask, table.concat(parts, ";")), true, "ALERT")
     C_Timer.After(0.8, function() if roomAsks[ask] then roomAsks[ask].finish() end end)
 end
+mod.AskStackRoom, mod.CanStack = AskStackRoom, function(key, link) return CanStack(key, link) end   -- (tests)
 
 -- bopOnly: a Bind on Pickup item - only members whose role lists this very
 -- item (not a quality, item group or class rule), and nobody else if they can't
@@ -1335,7 +1459,7 @@ local function Plan(needOf)
             plan[#plan + 1] = { slot = slot, link = link, key = key, index = index, role = role, rr = rr,
                 kind = kind, label = label, rule = rule }
             planned[key] = (planned[key] or 0) + 1
-            if not MMT.IsSelf(key) then NoteGiven(key) end
+            if not MMT.IsSelf(key) then NoteGiven(key, link) end
         end
         local function HandOut()
             if bind == BOP then
@@ -1379,7 +1503,7 @@ local function Plan(needOf)
                 plan[#plan + 1] = { slot = slot, link = link, key = key, index = index, role = "quest, round robin",
                     kind = "quest", label = link }
                 planned[key] = (planned[key] or 0) + 1
-                if not MMT.IsSelf(key) then NoteGiven(key) end
+                if not MMT.IsSelf(key) then NoteGiven(key, link) end
             elseif cfg.questNobody ~= "LEAVE" and (cfg.byRoles or cfg.unassigned == "RR") then
                 -- nobody's objective needs it (all done, e.g. Un'Goro Soil collected): it is
                 -- still loot - roles and round robin decide, like any other item

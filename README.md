@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.5: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.6: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -67,6 +67,10 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   the right character), unit frames, raid frames, nameplates, unit tooltips, lines other
   addons add to any tooltip (e.g. Syndicator's character counts on item tooltips) and the
   text of other addons' frames (e.g. their raid frames), where the game allows it.
+  A first or last name two of your characters share (e.g. two called "John") gets the
+  character the frame or tooltip shows, or the player link in chat names; without that, the
+  only one of them that is here (you or in your group), else "(team member)" - never the
+  other character's alias.
   The names the game draws above characters in the world (nameplates off) can't be
   changed by any addon (protected by Blizzard). "Name above characters" (only with "Hide
   names outside MMT too") picks what MMT does instead: "Show nameplates" (default)

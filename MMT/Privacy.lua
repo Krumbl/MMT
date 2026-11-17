@@ -17,6 +17,11 @@
 --     changed: friendly nameplates are switched on or those names off instead
 --     ("Name above characters").
 --
+-- A first or last name two team characters share ("John Multiboxer" and
+-- "John Doe" shown as just "John"): the character the unit frame / tooltip
+-- shows or the chat player link names, else the only one of them here (you or
+-- in your group), else "(team member)" (ns.AmbiguousAlias).
+--
 -- Only what is shown changes: player links in chat keep the real name, so
 -- clicking a name still whispers the right character. Addon messages,
 -- macros, invites and whispers always use the real names.
@@ -49,6 +54,20 @@ local function Rules(forDebug)
     local team = ns.db and ns.db.team
     if not team then return rules end
     local mode = Settings() and Settings().nameMode or "FIRST"
+    -- a first or last name two characters share ("John Multiboxer" and "John Doe"):
+    -- one rule for it that picks the character at replace time (AmbiguousAlias)
+    local holders = {}
+    for key in pairs(team) do
+        for _, part in ipairs({ ns.RealFirst(key), ns.RealLast(key) }) do
+            if part and part ~= "" then
+                local l = part:lower()
+                holders[l] = holders[l] or {}
+                local h = holders[l]
+                if h[#h] ~= key then h[#h + 1] = key end
+            end
+        end
+    end
+    local sharedDone = {}
     for key, m in pairs(team) do
         local first, last = ns.RealFirst(key), ns.RealLast(key)
         local alias
@@ -67,13 +86,27 @@ local function Rules(forDebug)
                 Add(first .. "<2d>" .. last)
             end
         end
-        Add(first)
-        Add(last)
+        for _, part in ipairs({ first, last }) do
+            local h = part and part ~= "" and holders[part:lower()]
+            if h and #h > 1 then
+                if not sharedDone[part:lower()] then
+                    sharedDone[part:lower()] = true
+                    rules[#rules + 1] = { text = part, alias = "", shared = h, forDebug = forDebug }
+                end
+            else
+                Add(part)
+            end
+        end
     end
     table.sort(rules, function(a, b) return #a.text > #b.text end)
     for _, r in ipairs(rules) do
         r.pattern = "%f[" .. LETTER .. "]" .. Caseless(Esc(r.text)) .. "%f[^" .. LETTER .. "]"
-        r.repl = r.alias:gsub("%%", "%%%%")
+        if r.shared then
+            local list, dbg = r.shared, r.forDebug
+            r.repl = function() return ns.AmbiguousAlias(list, dbg) end
+        else
+            r.repl = r.alias:gsub("%%", "%%%%")
+        end
     end
     -- first name + space/hyphen + the start of the last name: other addons
     -- shorten names to fit ("John Multiboxe", "John Mul", "John M.").
@@ -97,6 +130,55 @@ local function Rules(forDebug)
     for i = #shortened, 1, -1 do table.insert(rules, 1, shortened[i]) end
     return rules
 end
+
+-- The character a frame being fixed shows (its unit), set while its text is
+-- replaced: a name two characters share then gets the right one.
+local hintKey
+local function AliasOf(key, forDebug)
+    local mode = Settings() and Settings().nameMode or "FIRST"
+    if forDebug and mode == "FULL" then return ns.NameFor(key, "SLOT") end
+    return ns.ShownName(key)
+end
+-- for a name several characters share: the one the frame shows, else the only
+-- one of them that is here (you, or in your group), else "(team member)" -
+-- never the wrong character's name
+function ns.AmbiguousAlias(keys, forDebug)
+    if hintKey then
+        for _, k in ipairs(keys) do if k == hintKey then return AliasOf(k, forDebug) end end
+    end
+    local here = {}
+    for _, unit in ipairs(ns.GroupUnits and ns.GroupUnits() or {}) do
+        local _, _, full = ns.SplitUnit(unit)
+        local k = full and ns.Resolve(full)
+        if k then here[k] = true end
+    end
+    local found
+    for _, k in ipairs(keys) do
+        if ns.IsSelf(k) or here[k] then
+            if found then found = false break end
+            found = k
+        end
+    end
+    if found then return AliasOf(found, forDebug) end
+    return "(team member)"
+end
+
+-- the team member a unit frame (or a font string in one) shows, else nil
+local function UnitKeyOf(obj)
+    local f, n = obj, 0
+    while type(f) == "table" and n < 6 do
+        n = n + 1
+        local unit = rawget(f, "displayedUnit") or rawget(f, "unit")
+        if type(unit) == "string" and not ns.IsSecret(unit) then
+            local _, _, full = ns.SplitUnit(unit)
+            return full and ns.Resolve(full) or nil
+        end
+        local ok, parent = pcall(function() return f.GetParent and f:GetParent() end)
+        if not ok then return nil end
+        f = parent
+    end
+end
+ns.PrivacyUnitKeyOf = UnitKeyOf   -- (tests)
 
 local cache = {}
 local function CachedRules(forDebug)
@@ -242,9 +324,11 @@ function ns.ReplaceNames(text, forDebug)
     local rules = CachedRules(forDebug)
     if #rules == 0 or not Contains(text, rules.needles) then return text end
     local out, pos, len = {}, 1, #text
+    local outer, linkKey = hintKey, nil
     while pos <= len do
         local bar = text:find("|", pos, true)
         if not bar then break end
+        hintKey = linkKey or outer
         out[#out + 1] = ReplacePlain(text:sub(pos, bar - 1), rules)
         local stop
         for _, pattern in ipairs(ESCAPES) do
@@ -252,10 +336,17 @@ function ns.ReplaceNames(text, forDebug)
             if e then stop = e break end
         end
         stop = stop or bar
-        out[#out + 1] = text:sub(bar, stop)
+        local esc = text:sub(bar, stop)
+        out[#out + 1] = esc
+        -- a player link names the character: its shown name "[John]" gets that one
+        local who = esc:match("^|Hplayer:([^:|]+)")
+        if who then linkKey = ns.Resolve(who)
+        elseif text:sub(bar, bar + 1) == "|h" then linkKey = nil end
         pos = stop + 1
     end
+    hintKey = linkKey or outer
     out[#out + 1] = ReplacePlain(text:sub(pos), rules)
+    hintKey = outer
     return table.concat(out)
 end
 
@@ -552,9 +643,12 @@ AfterSetText = function(fs, text)
     end
     if ns.IsSecret(text) then FixMeterRow(fs) return end
     if type(text) ~= "string" then return end
-    local new = ns.ReplaceNames(text)
+    hintKey = UnitKeyOf(fs)
+    local okR, new = pcall(ns.ReplaceNames, text)
+    hintKey = nil
+    if not okR then return end
     if new ~= text then
-        tracked[fs] = { orig = text, shown = new }
+        tracked[fs] = { orig = text, shown = new, key = UnitKeyOf(fs) }
         SetQuietly(fs, new)
     elseif tracked[fs] and tracked[fs].shown ~= text then
         tracked[fs] = nil   -- new text without names
@@ -567,7 +661,10 @@ Reapply = function()
     for fs, t in pairs(tracked) do
         local ok, current = pcall(fs.GetText, fs)
         if ok and current == t.shown then
-            local new = Active() and ns.ReplaceNames(t.orig) or t.orig
+            hintKey = t.key
+            local okR, new = pcall(function() return Active() and ns.ReplaceNames(t.orig) or t.orig end)
+            hintKey = nil
+            if not okR then new = current end
             if new ~= current then SetQuietly(fs, new) end
             t.shown = new   -- kept when restored, so switching on again redoes it
         else
@@ -608,7 +705,17 @@ local function FixTooltip(tt, later)
                 tipStats.secret = tipStats.secret + 1
             elseif type(text) == "string" then
                 tipStats.checked = tipStats.checked + 1
-                local new = ns.ReplaceNames(text)
+                -- the name line: the character the tooltip is about
+                if i == 1 and tt.GetUnit then
+                    local okU, _, unit = pcall(tt.GetUnit, tt)
+                    if okU and type(unit) == "string" and not ns.IsSecret(unit) then
+                        local _, _, full = ns.SplitUnit(unit)
+                        hintKey = full and ns.Resolve(full) or nil
+                    end
+                end
+                local okR, new = pcall(ns.ReplaceNames, text)
+                hintKey = nil
+                if not okR then new = text end
                 if new ~= text then
                     fs:SetText(new)
                     tipStats.replaced = tipStats.replaced + 1

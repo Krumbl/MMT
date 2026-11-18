@@ -63,6 +63,16 @@ local function MaybeRaid()
     if not (cfg and cfg.raid) or TeamSize() <= 5 then return end
     if not IsInGroup() or IsInRaid() or not UnitIsGroupLeader("player") then return end
     if (GetNumGroupMembers() or 0) < 5 then return end
+    -- only when someone who is really online still has to join (an offline
+    -- 6th member must not turn the party into a raid)
+    local waiting = false
+    for _, key in ipairs(ns.SortedMembers()) do
+        if not InGroup(key) and (ns.IsOnline(key) or (seen[key] and GetTime() - seen[key].t < SEEN_FOR)) then
+            waiting = true
+            break
+        end
+    end
+    if not waiting then return end
     local convert = (C_PartyInfo and C_PartyInfo.ConvertToRaid) or ConvertToRaid
     if convert and pcall(convert) then
         stats.raids = stats.raids + 1

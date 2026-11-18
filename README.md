@@ -267,7 +267,7 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     without a reset asks whether it is the same ("Same instance" merges the rows); after
     a /reload or a relog within 2 minutes inside, it is the same without asking. Chat
     notes on entering: new or the same instance, and how many instances the account
-    entered in the last hour (the game allows 5).
+    entered in the last hour (WoW: Forever allows 10).
   - Professions (this account only, not shared): five tiles with the current skill of
     the two primary professions and Cooking, Fishing and First Aid ("not learned" when
     missing; an unlearned profession leaves the tiles but its history stays), then a

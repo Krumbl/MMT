@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.10: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.11: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -56,13 +56,13 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
 ## Settings (/mmt)
 - **Team** (tiles: Team Members, Communication, Team Invite, Privacy): Add group / Add me / Add target, or type "First Last". Drag a row by its dots to
   change the order.
-  **Team Invite** (idea by Phobix): "Auto-Invite team after 8 seconds" (on by default)
+  **Team Invite** (idea by Phobix): "Auto-Invite team after 8 seconds" (off by default)
   invites the team into one group after login. When the time is up, the online members
   check on each other again (INVQ / INVA, over the guild channel or by whisper like all
   team messages), and one of them invites the rest in team order: the FTL leader, or
   without one the first online member in team order who can lead (not in a group, or its
   leader / an assistant). A member who comes online later is invited the same way.
-  "Invite-Retry count" (3): members who haven't joined are invited again, every 10 seconds
+  "Invite-Retry count" (1): members who haven't joined are invited again, every 10 seconds
   each time. "Allow creation of raid" (on): with more than 5 team members a full party
   becomes a raid; with 5 or fewer never. Invite right away from the client you're on:
   key binding "Invite the team" (Key Bindings > MMT, also on this tile), `/mmt invite`

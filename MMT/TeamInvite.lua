@@ -211,6 +211,11 @@ end)
 
 ns.OnLogin(function()
     local cfg = Cfg()
+    -- 1.2.10 had it on with 3 retries: once to the new defaults (off, 1 retry)
+    if cfg and not cfg.defaults1211 then
+        cfg.defaults1211 = true
+        cfg.auto, cfg.retries = false, 1
+    end
     if not (cfg and cfg.auto) then return end
     local delay = math.max(0, math.min(120, tonumber(cfg.autoDelay) or 8))
     C_Timer.After(delay, AutoRun)

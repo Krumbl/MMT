@@ -155,7 +155,8 @@ ns.defaults = {
     death    = { release = true, revive = true,                 -- team buttons under the death / corpse dialogs
                  acceptRes = { team = true, friends = false, guild = false, anyone = false },
                  acceptSummon = { team = true, friends = false, guild = false, anyone = false } },
-    invites  = { friends = true, bnet = true, guild = true, team = true, whisper = true, keyword = "mybox" },
+    invites  = { friends = true, bnet = true, guild = true, team = true, whisper = true, keyword = "mybox",
+                 auto = true, autoDelay = 8, retries = 3, raid = true },   -- Team Invite (TeamInvite.lua)
     camera   = { enabled = true, factor = 2.6 },
     distance = {
         enabled = true, locked = false, hideNoTarget = false, colorize = false,

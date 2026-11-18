@@ -113,18 +113,9 @@ local function Invite(key)
     if ok then ns.Print("Invited %s.", ns.FullDisplay(key)) end
 end
 
--- middle-click: invite every team member who isn't in the group yet
-local function InviteTeam()
-    if not CanLead() then ns.Print("Only the group leader can invite.") return end
-    local n = 0
-    for _, key in ipairs(ns.SortedMembers()) do
-        if not ns.IsSelf(key) and not ns.UnitForMember(key) then
-            local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
-            if pcall(invite, ns.WhisperTarget(key)) then n = n + 1 end
-        end
-    end
-    if n > 0 then ns.Print("Invited %d team member(s).", n) else ns.Print("The whole team is in your group already.") end
-end
+-- middle-click: invite every team member who isn't in the group yet (the same
+-- as the key binding and /mmt invite: TeamInvite.lua)
+local function InviteTeam() ns.InviteTeam(true) end
 
 local function MakeLeader(key)
     if not ns.db.ftl.enabled then ns.Print("FTL is switched off (/mmt > FTL).") return end

@@ -297,7 +297,7 @@ ns.ConfigHelpers.TILE_W, ns.ConfigHelpers.TILE_GAP = TILE_W, TILE_GAP
 ---------------------------------------------------------------------------
 ns.RegisterPage("team", "Team", function(page)
     local TOP = Intro(page, "Your team: the characters MMT works with, how their clients talk to each other and how their names are shown.")
-    local ROWS, ROW_H = 8, 22
+    local ROWS, ROW_H = 6, 22
     local TEAM_H = 42 + 34 + ROWS * ROW_H + 8 + (UI.ROW + 6) + UI.ROW + 6
     local Y2 = TOP - TEAM_H - 8
     local BOTTOM_H = 564 + Y2   -- the rest of the page
@@ -436,8 +436,9 @@ ns.RegisterPage("team", "Team", function(page)
         banner:SetAlpha((text and text ~= "") and 0 or 1)
     end
 
-    -- Communication (bottom left) ------------------------------------------------
-    local _, C = Tile(page, 0, Y2, TILE_W, BOTTOM_H, "Communication", "Interface\\Icons\\Ability_Warrior_BattleShout")
+    -- Communication (bottom left, top part) -------------------------------------
+    local COMM_H = 42 + 2 * UI.ROW + 4 + 30
+    local _, C = Tile(page, 0, Y2, TILE_W, COMM_H, "Communication", "Interface\\Icons\\Ability_Warrior_BattleShout")
     local gg, sg = Opt("comm", "guild")
     C:Check("Use guild channel", gg, function(v)
         if v and not IsInGuild() then
@@ -449,13 +450,61 @@ ns.RegisterPage("team", "Team", function(page)
             ns.ReadGuildRoster()
             if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         end
-    end, "One message on the guild channel reaches every team member in your guild, grouped or not, and the guild roster shows who is online. Team members outside the guild still get whispers. Every guild member running MMT receives the messages too (and ignores them). Turn it on on every client. Needs a guild; switched off at login when this character isn't in one. With it, /mmt sync also sends the settings of the modules when everybody is in your guild.")
+    end, "One message on the guild channel reaches every team member in your guild, grouped or not, and the guild roster shows who is online. Team members outside the guild still get whispers. Every guild member running MMT receives the messages too (and ignores them). Turn it on on every client. Needs a guild; switched off at login when this character isn't in one. With it, /mmt sync also sends the settings of the modules when everybody is in your guild.\n\nAddons have limits on how much data can be sent to other addons and clients. MMT tries to avoid hitting the threshold, which can make sharing the profile slow. For best performance, join the same guild with all characters and enable this.")
     local gf, sf = Opt("comm", "fast")
     C:Check("Faster sending (1200 bytes/s)", gf, sf,
         "Increases the amount of data sent between team members for internal communication purposes by up to 50%.\nThis setting should be kept off, because it might cause the server to disconnect you if used excessively.")
     C:Space(4)
-    C:Note("Addons have limits on how much data can be sent to other addons and clients. MMT tries to avoid hitting the threshold, which can make sharing the profile slow.\nFor best performance, join the same guild with all characters and enable \"Use guild channel\".")
     local commInfo = C:Note("")
+
+    -- Team Invite (bottom left, below Communication) --------------------------------
+    local INV_Y = Y2 - COMM_H - 8
+    local itile, I = Tile(page, 0, INV_Y, TILE_W, BOTTOM_H - COMM_H - 8, "Team Invite", "Interface\\Icons\\Spell_Holy_PrayerOfFortitude")
+    local credit = UI.Label(itile, "Idea by Phobix", "GameFontNormalSmall")
+    credit:SetPoint("TOPRIGHT", -10, -12)
+    credit:SetTextColor(0.5, 0.5, 0.5)
+    -- a small number field: saved on Enter and when it loses focus
+    local function NumberBox(parent, get, set, min, max)
+        local box = UI.EditBox(parent, 36, "", nil)
+        box:SetNumeric(true)
+        box:SetMaxLetters(3)
+        box:SetJustifyH("CENTER")
+        local function Save()
+            local v = tonumber(box:GetText())
+            if v then set(math.max(min, math.min(max, math.floor(v)))) end
+            box:SetText(tostring(get()))
+        end
+        box:SetScript("OnEnterPressed", function(self) Save() self:ClearFocus() end)
+        box:SetScript("OnEditFocusLost", function(self) Save() self.UpdatePlaceholder() end)
+        box.Refresh = function() if not box:HasFocus() then box:SetText(tostring(get())) end end
+        return box
+    end
+    local inv = function() return ns.db.invites end
+    local AUTO_TIP = "A few seconds after login all online team members check on each other again, then one of them invites the rest in team order: the FTL leader, or without one the first online member in team order. A member who comes online later is invited the same way.\nThe others accept through \"Accept from team members\" (Automations > Socializing)."
+    local autoCheck = UI.Check(itile, 150, "Auto-Invite team after", function() return inv().auto end,
+        function(v) inv().auto = v and true or false end, AUTO_TIP)
+    autoCheck:SetWidth(22 + math.ceil(autoCheck.label:GetStringWidth() or 130) + 4)
+    I:Add(autoCheck, UI.ROW)
+    local delayBox = NumberBox(itile, function() return inv().autoDelay or 8 end, function(v) inv().autoDelay = v end, 0, 120)
+    delayBox:SetPoint("LEFT", autoCheck, "RIGHT", 4, 0)
+    local secLabel = UI.Label(itile, "seconds")
+    secLabel:SetPoint("LEFT", delayBox, "RIGHT", 6, 0)
+    UI.Tooltip(delayBox, "Auto-Invite team after", "Seconds after login (0 - 120). " .. AUTO_TIP)
+    local retryLabel = UI.Label(itile, "Invite-Retry count:")
+    I:Add(retryLabel, UI.ROW)
+    retryLabel:SetPoint("TOPLEFT", itile, "TOPLEFT", 8 + 22, I.y + UI.ROW - 4)
+    local retryBox = NumberBox(itile, function() return inv().retries or 3 end, function(v) inv().retries = v end, 0, 10)
+    retryBox:SetPoint("LEFT", retryLabel, "RIGHT", 8, 0)
+    UI.Tooltip(retryBox, "Invite-Retry count", "How often members who haven't joined are invited again: every 10 seconds each (0 - 10).")
+    local graid, sraid = Opt("invites", "raid")
+    I:Check("Allow creation of raid", graid, sraid,
+        "With more than 5 team members, a full party becomes a raid so the rest can join. With 5 or fewer team members a raid is never created.")
+    local keyLabel = UI.Label(itile, "Invite the team now:")
+    I:Add(keyLabel, UI.ROW)
+    keyLabel:SetPoint("TOPLEFT", itile, "TOPLEFT", 8 + 22, I.y + UI.ROW - 4)
+    local keyButton = UI.KeyBind(itile, 140, "MMT_INVITE_TEAM")
+    keyButton:SetPoint("LEFT", keyLabel, "RIGHT", 8, 0)
+    UI.Tooltip(keyButton, "Invite the team", "Key binding (also in the game's Key Bindings > MMT). Click, then press a key; right-click clears it.\nInvites the team at once from this client, without the delay, like /mmt invite and middle-click on the Info window.")
 
     -- Privacy (bottom right) -------------------------------------------------------
     local ptile, P = Tile(page, X2, Y2, TILE_W, BOTTOM_H, "Privacy", "Interface\\Icons\\Ability_Stealth")
@@ -532,6 +581,7 @@ ns.RegisterPage("team", "Team", function(page)
         sameGuild = sameGuild and known > 0
         banner:SetShown(sameGuild and not ns.db.comm.guild)
         you:SetText("You are playing " .. ns.FirstName(ns.PlayerFull()) .. ".")
+        delayBox.Refresh() retryBox.Refresh()
         local full = ns.db.privacy.nameMode == "FULL"
         hideCheck:SetAlpha(full and 0.4 or 1)
         if hideCheck.SetEnabled then hideCheck:SetEnabled(not full) end

@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.9: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.10: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -54,8 +54,21 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   API, team communication, two complete examples).
 
 ## Settings (/mmt)
-- **Team** (tiles: Team Members, Communication, Privacy): Add group / Add me / Add target, or type "First Last". Drag a row by its dots to
+- **Team** (tiles: Team Members, Communication, Team Invite, Privacy): Add group / Add me / Add target, or type "First Last". Drag a row by its dots to
   change the order.
+  **Team Invite** (idea by Phobix): "Auto-Invite team after 8 seconds" (on by default)
+  invites the team into one group after login. When the time is up, the online members
+  check on each other again (INVQ / INVA, over the guild channel or by whisper like all
+  team messages), and one of them invites the rest in team order: the FTL leader, or
+  without one the first online member in team order who can lead (not in a group, or its
+  leader / an assistant). A member who comes online later is invited the same way.
+  "Invite-Retry count" (3): members who haven't joined are invited again, every 10 seconds
+  each time. "Allow creation of raid" (on): with more than 5 team members a full party
+  becomes a raid; with 5 or fewer never. Invite right away from the client you're on:
+  key binding "Invite the team" (Key Bindings > MMT, also on this tile), `/mmt invite`
+  or middle-click on the Info window - all three do the same, without the delay.
+  The others accept through "Accept from team members" (Automations > Socializing).
+  Keep the setting the same on every client (Profiles > Sync to team).
   **Privacy**: "Show characters by" first name (default), last name, full name, class
   ("Druid 1", "Druid 2" in team order) or slot ("Slot 1", "Slot 2"). This applies to
   everything MMT shows: windows, settings, tooltips, its chat lines and raid warnings.

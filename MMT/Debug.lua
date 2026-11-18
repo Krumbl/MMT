@@ -181,7 +181,7 @@ function ns.BuildDebugReport()
     end
     add("")
 
-    for _, report in ipairs({ ns.PetReport, ns.LevelUpReport, ns.FlightReport, ns.PrivacyTooltipReport }) do
+    for _, report in ipairs({ ns.PetReport, ns.LevelUpReport, ns.FlightReport, ns.TeamInviteReport, ns.PrivacyTooltipReport }) do
         local ok, err = pcall(report, add)
         if not ok then add("report error: " .. tostring(err)) end
     end

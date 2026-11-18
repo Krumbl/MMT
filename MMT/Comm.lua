@@ -627,11 +627,12 @@ function ns.AcceptNotice(channel)
     return channel == "WHISPER" or ns.IsNoticeLeaderHere()
 end
 
-function ns.TellLeader(msg)
+-- prio: "ALERT" for what can't wait (drowning), else "NORMAL"
+function ns.TellLeader(msg, prio)
     if not ns.db then return end
     local key = ns.NoticeLeader()
     if not key or ns.IsSelf(key) then return "self" end
-    Send(msg, "WHISPER", ns.WhisperTarget(key), "NORMAL")
+    Send(msg, "WHISPER", ns.WhisperTarget(key), prio or "NORMAL")
     return true
 end
 

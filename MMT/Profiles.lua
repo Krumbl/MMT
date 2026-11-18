@@ -104,12 +104,14 @@ ns.defaults = {
                                  -- NAMEPLATES (friendly nameplates on, own name off) | HIDE (friendly player names off)
     },
 
-    -- room warnings (Warnings.lua): shown on the leader's client
+    -- room and breath warnings (Warnings.lua): shown on the leader's client
     warn = {
         bags        = true,   -- bags almost full
         bagsAt      = 2,      -- ... at this many free slots or fewer
         quests      = true,   -- quest log almost full
         questsAt    = 3,      -- ... at this many free quest slots or fewer
+        drown       = true,   -- running out of breath under water
+        drownAt     = 15,     -- ... at this many seconds of breath left or fewer (and when it's gone)
         raidWarning = true,
         sound       = false,
     },

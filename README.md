@@ -411,7 +411,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   the tracker gets shorter the more quests are ready to turn in ("(Ready for you)" while
   others still work on it). The same for a single objective: one of several monsters to
   kill that every character on the quest has done shows as one line with "(Ready)"
-  ("Collapse objectives the team has done", on by default). With only your character shown, it is a classic tracker: the
+  ("Collapse objectives the team has done", on by default). A timed quest (escorts, "within
+  10 minutes") gets a "Time left: 4:58" line, red in the last minute ("Time left of timed
+  quests", on by default). With only your character shown, it is a classic tracker: the
   progress right behind each objective, done objectives in green. Item objectives the game
   counts lower than the bags hold (seen after trading quest items: the game counted only
   the new stack) take the number of items of that name in the bags, up to the amount

@@ -210,6 +210,127 @@ local function Hex(r, g, b)
     return ("|cff%02x%02x%02x"):format(math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
 end
 local GREEN, RED, GREY = Hex(0.35, 1, 0.35), Hex(1, 0.35, 0.35), Hex(0.5, 0.5, 0.5)
+local YELLOW = Hex(1, 0.82, 0)
+
+---------------------------------------------------------------------------
+-- Timed quests (showTimers): the time left from your own quest log's timers
+-- (escorts, "within 15 minutes" quests), behind the quest line
+---------------------------------------------------------------------------
+-- The game tells the time left in more than one way, depending on the client: its quest timers
+-- (GetQuestTimers), the quest's time allowed (C_QuestLog.GetTimeAllowed) and the quest log's
+-- "Time Remaining" (GetQuestLogTimeLeft of the selected entry). Read now and then (quest log
+-- changes, every 15 s), counted down here in between: timerEnd[questID] = GetTime() when it runs out.
+local timerEnd, timerHow = {}, {}
+local lastRead = 0
+
+-- this character's quests: { index, id } in log order (C_QuestLog like Data.lua, else the old API)
+local function LogQuests()
+    local list = {}
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        for i = 1, (C_QuestLog.GetNumQuestLogEntries() or 0) do
+            local info = C_QuestLog.GetInfo(i)
+            if info and not info.isHeader and info.questID and info.questID > 0 then list[#list + 1] = { index = i, id = info.questID } end
+        end
+    elseif GetNumQuestLogEntries and GetQuestLogTitle then
+        for i = 1, (GetNumQuestLogEntries() or 0) do
+            local title, _, _, isHeader, _, _, _, id = GetQuestLogTitle(i)
+            if title and not isHeader and id and id > 0 then list[#list + 1] = { index = i, id = id } end
+        end
+    end
+    return list
+end
+
+local function IdAt(index)
+    if not index then return nil end
+    if C_QuestLog and C_QuestLog.GetInfo then
+        local info = C_QuestLog.GetInfo(index)
+        return info and info.questID
+    end
+    return GetQuestLogTitle and select(8, GetQuestLogTitle(index)) or nil
+end
+
+-- the quest log's selection: by quest (C_QuestLog) or by log index (old API)
+local function Selected()
+    if C_QuestLog and C_QuestLog.GetSelectedQuest then return C_QuestLog.GetSelectedQuest() end
+    return GetQuestLogSelection and GetQuestLogSelection()
+end
+local function Select(q)
+    if C_QuestLog and C_QuestLog.SetSelectedQuest then C_QuestLog.SetSelectedQuest(q.id)
+    elseif SelectQuestLogEntry then SelectQuestLogEntry(q.index) end
+end
+local function Reselect(before)
+    if C_QuestLog and C_QuestLog.SetSelectedQuest then C_QuestLog.SetSelectedQuest(before or 0)
+    elseif SelectQuestLogEntry then SelectQuestLogEntry(before or 0) end
+end
+
+local raw = {}   -- per quest what each way said (debug dump)
+
+function mod.ReadQuestTimers()
+    local now = GetTime()
+    lastRead = now
+    local found, how = {}, {}
+    local log = LogQuests()
+    wipe(raw)
+    -- 1. the game's quest timers
+    if GetQuestTimers and GetQuestIndexForTimer then
+        local times = { GetQuestTimers() }
+        for i, left in ipairs(times) do
+            local id = IdAt(GetQuestIndexForTimer(i))
+            left = tonumber(left)
+            if id and left then found[id], how[id] = left, "timers" end
+        end
+    end
+    -- 2. the time allowed of each quest
+    if C_QuestLog and C_QuestLog.GetTimeAllowed then
+        for _, q in ipairs(log) do
+            local ok, total, elapsed = pcall(C_QuestLog.GetTimeAllowed, q.id)
+            raw[q.id] = ("allowed=%s/%s"):format(tostring(ok and total), tostring(ok and elapsed))
+            total, elapsed = tonumber(total), tonumber(elapsed)
+            if ok and not found[q.id] and total and total > 0 then found[q.id], how[q.id] = total - (elapsed or 0), "allowed" end
+        end
+    end
+    -- 3. the quest log's "Time Remaining": per quest, the selection put back after
+    if GetQuestLogTimeLeft then
+        local before = Selected()
+        for _, q in ipairs(log) do
+            Select(q)
+            local left = GetQuestLogTimeLeft()   -- (may return nothing at all)
+            left = tonumber(left)
+            raw[q.id] = (raw[q.id] or "") .. (" logLeft=%s"):format(tostring(left))
+            if not found[q.id] and left and left > 0 then found[q.id], how[q.id] = left, "log" end
+        end
+        Reselect(before)
+    end
+    wipe(timerEnd); wipe(timerHow)
+    for id, left in pairs(found) do
+        if left > 0 then timerEnd[id], timerHow[id] = now + left, how[id] end
+    end
+end
+
+-- { [questID] = seconds left } of this character's timed quests
+function mod.QuestTimers()
+    local out, now = {}, GetTime()
+    for id, t in pairs(timerEnd) do
+        if t > now then out[id] = t - now end
+    end
+    return out
+end
+
+function mod.QuestTimersReport()
+    local t = {}
+    for id, left in pairs(mod.QuestTimers()) do t[#t + 1] = ("%d=%ds (%s)"):format(id, left, timerHow[id] or "?") end
+    local r = {}
+    for id, text in pairs(raw) do r[#r + 1] = id .. ": " .. text end
+    return (#t > 0 and table.concat(t, " ") or "none") .. " | " .. table.concat(r, "; ")
+end
+
+-- 4:05 / 1:02:09
+function mod.TimerText(sec)
+    sec = math.max(0, math.floor(sec))
+    local h, m, s = math.floor(sec / 3600), math.floor(sec / 60) % 60, sec % 60
+    if h > 0 then return ("%d:%02d:%02d"):format(h, m, s) end
+    return ("%d:%02d"):format(m, s)
+end
 
 -- [level] colour like the game's quest log. On Forever the generic
 -- GetQuestDifficultyColor(level) uses other thresholds than the quest log (a
@@ -345,6 +466,7 @@ function mod.BuildEntries()
     local solo = #members == 1   -- only you shown: no member rows
     local cfg = M.db
     local collapsed = Collapsed()
+    local timers = cfg.showTimers and mod.QuestTimers() or {}
 
     -- quests: own (log order) first, then quests only teammates have
     local quests, zones, byZone = {}, {}, {}
@@ -422,10 +544,18 @@ function mod.BuildEntries()
                 elseif ownQ and ownQ.state == -1 then suffix = "  " .. RED .. "(Failed)|r" end
                 local lc = LevelColour(q.level, id)
                 local tag = "[" .. (q.level or "?") .. "]"
+                -- a timed quest: the time left right after the level, so a long title can't push it
+                -- out of sight (red in the last minute)
                 local text = (lc and (lc .. tag .. "|r") or tag) .. " " .. q.title .. suffix
                 Add({ kind = "quest", key = qkey, text = text, indent = 1, collapsible = not ready,
                     collapsed = collapsed[qkey], questID = id, ready = ready, title = q.title, level = q.level,
                     zone = zone, mine = entry.mine })
+                -- a timed quest: the time left on a line of its own, like an objective (also when ready;
+                -- red in the last minute)
+                if timers[id] and not collapsed[qkey] and not (ownQ and ownQ.state == -1) then
+                    Add({ kind = "objective", text = (timers[id] < 60 and RED or YELLOW) .. "Time left: "
+                        .. mod.TimerText(timers[id]) .. "|r", indent = 2, questID = id })
+                end
                 if not collapsed[qkey] and not ready then
                     -- objective texts from your log, otherwise from the first member who has the quest
                     local objectives = q.obj
@@ -1018,4 +1148,16 @@ M:Listen("STATUS_CHANGED", MMT.Coalesce(function() mod.Redraw() end, 0.25))   --
 M:Listen("TEAM_CHANGED", mod.Redraw)
 MMT.OnLogin(function()
     C_Timer.NewTicker(10, function() if M.enabled then mod.Redraw() end end) -- members going offline
+    -- a timed quest: the time left counts down every second
+    mod.ReadQuestTimers()
+    C_Timer.NewTicker(1, function()
+        if M.enabled and M.db.showTimers and next(timerEnd) then mod.Redraw() end
+    end)
+    C_Timer.NewTicker(15, function() if M.enabled and M.db.showTimers then mod.ReadQuestTimers() end end)
 end)
+
+-- quest log changes (a timed quest taken, done, failed): the timers read again
+M:On("QUEST_LOG_UPDATE", MMT.Coalesce(function()
+    -- (not again right after a read of ours: selecting the entries may report a change itself)
+    if M.enabled and M.db.showTimers and GetTime() - lastRead > 2 then mod.ReadQuestTimers() end
+end, 1))

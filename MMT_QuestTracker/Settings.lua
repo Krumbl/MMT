@@ -71,6 +71,7 @@ M.Page = function(_, page)
     L:Check("Class colours for names", Opt("classColors"))
     local glc, slc = Opt("levelColors")
     L:Check("Quest level in difficulty colour", glc, slc, "Colours the [level] by how hard the quest is for your character.")
+    L:Check("Time left of timed quests", Opt("showTimers"))
     L:Space(6)
     L:Button("Request update from team", function()
         mod.RequestAll()
@@ -230,6 +231,10 @@ function M.Report(_, add)
     add(("tracker: onlyWatched=%s teamQuests=%s showMissing=%s objectiveReady=%s focusZone=%s tracked=%d"):format(
         tostring(M.db.onlyWatched), tostring(M.db.teamQuests), tostring(M.db.showMissing), tostring(M.db.objectiveReady),
         MMT.Repr(M.store.focusZone), watchedN))
+    if M.db.showTimers then mod.ReadQuestTimers() end
+    add(("timed quests: showTimers=%s timers={%s} allowed=%s logLeft=%s: %s"):format(tostring(M.db.showTimers),
+        GetQuestTimers and table.concat({ tostringall(GetQuestTimers()) }, ",") or "no API",
+        tostring(C_QuestLog and C_QuestLog.GetTimeAllowed ~= nil), tostring(GetQuestLogTimeLeft ~= nil), mod.QuestTimersReport()))
     add(("other trackers: hideOthers=%s  %s"):format(tostring(M.db.hideOthers), mod.OtherTrackersReport()))
     add(mod.ArrangeReport())
     if mod.QuestXPReport then add(mod.QuestXPReport()) end

@@ -72,6 +72,8 @@ M.Page = function(_, page)
         status.Show_(ok and (msg or ("Item Compare is now on " .. GetBindingText(combo) .. ".")) or msg, not ok)
         StopCapture()
     end)
+    -- an OnKeyDown script switches the keyboard on: off again until a click starts the capture
+    keyButton:EnableKeyboard(false)
     UI.Tooltip(keyButton, "Item Compare key", "Click, then press the key you want (Alt, Ctrl and Shift combinations work). Right-click removes it. Also in Esc > Options > Keybindings > MMT (Manage My Team).")
     L:Add(keyButton, UI.ROW + 2)
 

@@ -1002,6 +1002,9 @@ function UI.KeyBind(parent, width, action)
         Stop()
     end)
     b:SetScript("OnHide", function() if waiting then Stop() end end)
+    -- an OnKeyDown script switches the keyboard on: off again until a click starts the
+    -- capture, else the shown button takes every key (movement, Escape) while the page is open
+    b:EnableKeyboard(false)
     b.Refresh = Show
     Show()
     return b

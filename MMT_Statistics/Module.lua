@@ -52,6 +52,10 @@ local M = MMT.NewModule({
         liveLocked  = false,
         liveFont    = "Friz Quadrata",
         liveSize    = 10,
+        liveLook    = "MMT",    -- MMT | METER (like EllesmereUI's damage meter: header, background, font)
+        liveDock    = "OFF",    -- OFF | ABOVE | BELOW | LEFT | RIGHT: on a damage meter window (HUF's / EllesmereUI's)
+        liveDockWin = 1,        -- ... that window (1 = the first)
+        liveFill    = true,     -- docked: stretched to line up with the meter window beside it
         exportKind  = "GOLD_CHAR",   -- CSV export (Export.lua)
         exportScope = "ALL",
         exportSep   = ",",       -- , | ; (decimal comma)

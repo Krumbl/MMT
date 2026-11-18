@@ -17,8 +17,8 @@
 --     changed: friendly nameplates are switched on or those names off instead
 --     ("Name above characters").
 --
--- A first or last name two team characters share ("John Multiboxer" and
--- "John Doe" shown as just "John"): the character the unit frame / tooltip
+-- A first or last name two team characters share (two characters named
+-- John, shown as just "John"): the character the unit frame / tooltip
 -- shows or the chat player link names, else the only one of them here (you or
 -- in your group), else "(team member)" (ns.AmbiguousAlias).
 --
@@ -54,7 +54,7 @@ local function Rules(forDebug)
     local team = ns.db and ns.db.team
     if not team then return rules end
     local mode = Settings() and Settings().nameMode or "FIRST"
-    -- a first or last name two characters share ("John Multiboxer" and "John Doe"):
+    -- a first or last name two characters share (two characters named John):
     -- one rule for it that picks the character at replace time (AmbiguousAlias)
     local holders = {}
     for key in pairs(team) do

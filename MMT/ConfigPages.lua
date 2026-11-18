@@ -456,6 +456,21 @@ ns.RegisterPage("team", "Team", function(page)
         "Increases the amount of data sent between team members for internal communication purposes by up to 50%.\nThis setting should be kept off, because it might cause the server to disconnect you if used excessively.")
     C:Space(4)
     local commInfo = C:Note("")
+    -- the tile has room for two lines of it: a longer text (many members outside the
+    -- guild, a wider font) ends in "...", and the whole text shows on hover
+    if commInfo.SetMaxLines then commInfo:SetMaxLines(2) end
+    local commHover = CreateFrame("Frame", nil, commInfo:GetParent())
+    commHover:SetAllPoints(commInfo)
+    commHover:EnableMouse(true)
+    commHover:SetScript("OnEnter", function(self)
+        local text = commInfo:GetText()
+        if not text or text == "" then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Communication")
+        GameTooltip:AddLine(text, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    commHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Team Invite (bottom left, below Communication) --------------------------------
     local INV_Y = Y2 - COMM_H - 8

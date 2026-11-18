@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.6: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.7: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -71,6 +71,10 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   character the frame or tooltip shows, or the player link in chat names; without that, the
   only one of them that is here (you or in your group), else "(team member)" - never the
   other character's alias.
+  HUF (Hivemind Unitframes): HUF reads this privacy setting and the team itself and shows
+  your characters on its frames and nameplates the way you choose there ("MMT's privacy for
+  my team"). MMT leaves HUF's frames alone and tells HUF to redraw whenever names change.
+  The API other addons can use is listed at the top of MMT/Privacy.lua (MMT.PRIVACY_API).
   The names the game draws above characters in the world (nameplates off) can't be
   changed by any addon (protected by Blizzard). "Name above characters" (only with "Hide
   names outside MMT too") picks what MMT does instead: "Show nameplates" (default)

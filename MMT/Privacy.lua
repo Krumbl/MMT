@@ -37,6 +37,19 @@ end
 -- "Hide names outside MMT too" in effect (true/false)
 function ns.PrivacyHidesOutside() return Active() and true or false end
 
+-- Public privacy API for other addons (HUF reads it; _G.MMT is ns):
+--   MMT.PRIVACY_API                 -> 1
+--   MMT.db.privacy.nameMode         FIRST | LAST | FULL | CLASS | SLOT ("Show characters by")
+--   MMT.db.privacy.hideOutside      "Hide names outside MMT too" (MMT.PrivacyHidesOutside())
+--   MMT.Resolve(name)               team key ("First-Last") of a full name, or nil (a bare
+--                                   first name two characters share gives nil)
+--   MMT.ShownName(key)              the name to show for a team key
+--   MMT.PrivacyChanged()            called by MMT whenever shown names change (setting, team,
+--                                   profile, a class learned): hook it with hooksecurefunc
+--   MMT.Listen("TEAM_CHANGED" | "PROFILE_CHANGED", fn), MMT.OnRefresh(fn)
+-- MMT leaves the frames of an addon that does this itself alone (HUF, below).
+ns.PRIVACY_API = 1
+
 ---------------------------------------------------------------------------
 -- Text replacement
 ---------------------------------------------------------------------------
@@ -287,6 +300,7 @@ function ns.PrivacyChanged()
     cache = {}
     if ns.RefreshNameFrames then ns.RefreshNameFrames() end
     if Reapply then Reapply() end
+    if ns.PrivacyTellHUF then ns.PrivacyTellHUF() end
 end
 ns.Listen("TEAM_CHANGED", function() ns.PrivacyChanged() end)
 ns.Listen("PROFILE_CHANGED", function() ns.PrivacyChanged() end)
@@ -424,6 +438,56 @@ local function NameText(frame)
     end
     if fs and fs.GetText and fs.SetText and not Forbidden(fs) then return fs end
 end
+
+---------------------------------------------------------------------------
+-- HUF (Hivemind Unitframes): HUF reads MMT's privacy setting itself (through
+-- the public API below) and draws team members' names on its own frames, with
+-- its own choice for them ("MMT's privacy for my team"). MMT's text
+-- replacement therefore leaves HUF's frames alone, and tells HUF when names
+-- change.
+---------------------------------------------------------------------------
+local hufStats = { skipped = 0, refreshed = 0 }
+local function HUF()
+    local h = _G.HUF
+    if type(h) == "table" and h.API_VERSION then return h end
+end
+local hufOwn = setmetatable({}, { __mode = "k" })   -- [font string] = true/false
+local function IsHUFText(fs)
+    local h = HUF()
+    if not h then return false end
+    local known = hufOwn[fs]
+    if known ~= nil then return known end
+    local plates = type(h.Nameplates) == "table" and type(h.Nameplates.plates) == "table" and h.Nameplates.plates
+    local f, n, mine = fs, 0, false
+    while type(f) == "table" and n < 8 do
+        n = n + 1
+        if rawget(f, "hufLabel") or rawget(f, "hufBuilt") then mine = true break end
+        -- an HUF nameplate (pooled, so also before it is attached): its parts
+        if rawget(f, "health") and rawget(f, "cast") and rawget(f, "elite") and rawget(f, "auras") then mine = true break end
+        if plates then
+            for _, p in pairs(plates) do if p == f then mine = true break end end
+            if mine then break end
+        end
+        local ok, parent = pcall(function() return f.GetParent and f:GetParent() end)
+        if not ok then break end
+        f = parent
+    end
+    hufOwn[fs] = mine
+    return mine
+end
+ns.PrivacyIsHUFText = IsHUFText   -- (tests)
+
+-- names changed: HUF redraws (HUF also hooks ns.PrivacyChanged; this covers
+-- an HUF that linked late)
+local function TellHUF()
+    local h = HUF()
+    if h and type(h.RefreshNames) == "function" then
+        hufStats.refreshed = hufStats.refreshed + 1
+        pcall(h.RefreshNames)
+    end
+end
+
+ns.PrivacyTellHUF = TellHUF
 
 local AfterSetText   -- below: replaces and remembers the original text
 local function FixFrame(frame)
@@ -636,6 +700,7 @@ ns.PrivacyMeter = { MemberForRow = MemberForRow, RowShowsClass = RowShowsClass, 
 
 AfterSetText = function(fs, text)
     if busy or not Active() or Forbidden(fs) then return end
+    if IsHUFText(fs) then hufStats.skipped = hufStats.skipped + 1 return end
     if text == nil then
         local ok, cur = pcall(fs.GetText, fs)
         if not ok then return end
@@ -876,7 +941,17 @@ end
 
 -- /mmt debug dump: how the tooltip check went
 function ns.PrivacyTooltipReport(add)
-    add(("-- Privacy  active=%s"):format(tostring(Active())))
+    add(("-- Privacy  active=%s  api=%s"):format(tostring(Active()), tostring(ns.PRIVACY_API)))
+    local h = HUF()
+    if h then
+        local st = h.Bridge and type(h.Bridge.Status) == "function" and select(2, pcall(h.Bridge.Status)) or nil
+        local hdb = type(h.db) == "table" and type(h.db.privacy) == "table" and h.db.privacy or {}
+        add(("  HUF: loaded api=%s  its MMT setting=%s  linked=%s active=%s  HUF texts left to HUF=%d  HUF told to redraw=%d"):format(
+            tostring(h.API_VERSION), tostring(hdb.mmt), tostring(type(st) == "table" and st.loaded),
+            tostring(type(st) == "table" and st.active), hufStats.skipped, hufStats.refreshed))
+    else
+        add("  HUF: not loaded")
+    end
     add(("  tooltips: lines checked=%d replaced=%d (set again after MMT's first pass: %d) secret (unreadable)=%d  last set again: %s"):format(
         tipStats.checked, tipStats.replaced, tipStats.again, tipStats.secret,
         #tipStats.last > 0 and table.concat(tipStats.last, ", ") or "-"))

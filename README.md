@@ -232,12 +232,25 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
 - **Statistics** (module, on by default; `/mmtstats`). Tabs Gold, Kills, Quests, Leveling,
   Zones and Settings. Only gold is shared with the team; kills, quests, levels and zones
   stay on the account (every character of it that runs MMT, in the team or not).
-  - Gold: a table with one row per team member (you first): "This Character", "Other
-    Characters" (every other character on that member's WoW account) and "Combined"; the
-    row tooltip lists the account's characters. Every character records its gold after
-    login and on every change: one record per day, kept for 60 days, saved per account.
-    A line chart of the combined gold over the last 60 days for "Current team", "Current
-    account", "Account of X" or "All accounts" (round whole-gold steps, hover a day).
+  - Gold, with three sub tabs:
+    - Overview: a table with one row per WoW account of the team (team members on the same
+      account share a row, "Druid 1 + Rogue 1" in team order, so nothing counts twice):
+      "Team Characters", "Other Characters" (the account's characters outside the team) and
+      "Combined"; the row tooltip lists the account's characters. Every character records
+      its gold after login and on every change: one record per day, kept for 60 days,
+      saved per account. A chart of the combined gold over the last 60 days for "Current
+      team", "Current account", "Account of X" or "All accounts" (round whole-gold steps,
+      hover a day), with green / red bars for the gold earned and spent each day, and the
+      totals earned, spent and net above it.
+    - Earnings / Expenses: every change of a character's gold is sorted by what was open or
+      just happened. Earned: Looted, Quests, Vendor sales, Auction house (also auction money
+      taken from a mail), Mail, Trade, Guild bank, Other. Spent: Vendor purchases, Repairs,
+      Flights, Training, Auction house, Mail (postage, COD), Trade, Guild bank, Other.
+      A table per category for today, the last 7 days, the last 60 days and since tracking
+      began (same scope choice as the chart; shared with the team like the gold), and the
+      game's own lifetime counters for this character: gold acquired, looted, quest rewards,
+      vendor and auction sales, spent on travel, most gold owned (statistic ids as listed by
+      the ForeverIRS addon).
   - Accounts: every WoW account keeps its own saved variables, so MMT gives each one a
     random id (two clients with the same id, from copied saved variables: the later name
     takes a new one; a character only counts for an account once it logged in there).

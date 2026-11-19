@@ -214,6 +214,45 @@ function mod.CreateChart(parent, width, height)
         end
     end
 
+    -- earned (green) / spent (red) per day: thin bars along the bottom, on a
+    -- scale of their own (the lower third of the chart)
+    c.bars = {}
+    local function Bar(i)
+        local b = c.bars[i]
+        if not b then
+            b = c:CreateTexture(nil, "BACKGROUND", nil, 1)
+            c.bars[i] = b
+        end
+        return b
+    end
+    function c:SetFlows(days, format)
+        self.flows, self.flowFormat = days, format
+        for _, b in ipairs(self.bars) do b:Hide() end
+        if not days then return end
+        local most = 0
+        for _, d in ipairs(days) do most = math.max(most, d.e or 0, d.s or 0) end
+        if most <= 0 then return end
+        local n = #days
+        local slot = self.plotW / math.max(1, n)
+        local w = math.max(1, math.floor(slot / 2 - 1))
+        local k = 0
+        for i, d in ipairs(days) do
+            local x = self.padL + (n > 1 and (i - 1) / (n - 1) or 0.5) * self.plotW
+            for side, colour in pairs({ e = { 0.35, 0.85, 0.35 }, s = { 0.9, 0.35, 0.35 } }) do
+                local v = d[side] or 0
+                if v > 0 then
+                    k = k + 1
+                    local b = Bar(k)
+                    b:SetColorTexture(colour[1], colour[2], colour[3], 0.45)
+                    b:SetSize(w, math.max(1, v / most * self.plotH * 0.33))
+                    b:ClearAllPoints()
+                    b:SetPoint("BOTTOM", self, "BOTTOMLEFT", side == "e" and (x - w / 2) or (x + w / 2), PAD_B)
+                    b:Show()
+                end
+            end
+        end
+    end
+
     -- hover: the nearest day with its value
     c:EnableMouse(true)
     c:SetScript("OnUpdate", function(self)
@@ -244,6 +283,11 @@ function mod.CreateChart(parent, width, height)
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
         GameTooltip:SetText(p[1])
         GameTooltip:AddLine(p[2] and self.format(p[2]) or "no data", 1, 1, 1)
+        local fl = self.flows and self.flows[i]
+        if fl and ((fl.e or 0) > 0 or (fl.s or 0) > 0) then
+            GameTooltip:AddDoubleLine("Earned", self.flowFormat(fl.e or 0), 0.4, 0.9, 0.4, 1, 1, 1)
+            GameTooltip:AddDoubleLine("Spent", self.flowFormat(fl.s or 0), 0.95, 0.4, 0.4, 1, 1, 1)
+        end
         GameTooltip:Show()
     end)
     return c

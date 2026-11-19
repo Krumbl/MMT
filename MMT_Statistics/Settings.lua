@@ -196,33 +196,58 @@ local function Members()
     return list
 end
 
--- field: "g" (gold) or "k" (kills); fmt formats a value
-local function MemberRows(field, fmt, unit)
-    local rows = {}
+-- one row per account of the team (characters of one game account share a row:
+-- "Druid 1 + Rogue 1", in team order): the team's characters on it, its other
+-- characters and both together
+local function AccountRows(field, fmt)
+    local rows, byAcc, order = {}, {}, {}
     for _, key in ipairs(Members()) do
         local acc = mod.AccountOf(key)
         local a = acc and mod.Account(acc)
-        local own = a and a.chars[key]
-        if not a or not own then
+        if not a or not a.chars[key] then
             rows[#rows + 1] = { MMT.ShownName(key), "no data", "", "", grey = true,
                 tip = function(t)
                     t:SetText(MMT.ShownName(key))
                     t:AddLine("Nothing received yet: this character needs MMT with the Statistics module, and to have been online since.", 1, 1, 1, true)
                 end }
         else
-            local mine = own[field] or 0
+            if not byAcc[acc] then
+                byAcc[acc] = { a = a, keys = {} }
+                order[#order + 1] = acc
+                rows[#rows + 1] = acc   -- placeholder, filled below
+            end
+            table.insert(byAcc[acc].keys, key)
+        end
+    end
+    for i, r in ipairs(rows) do
+        if type(r) == "string" then
+            local acc, e = r, byAcc[r]
+            local a, team, names = e.a, {}, {}
+            -- team order for the label (Members() puts you first)
+            local sorted = {}
+            for _, k in ipairs(e.keys) do sorted[#sorted + 1] = k end
+            local orderOf = {}
+            for n, k in ipairs(MMT.SortedMembers()) do orderOf[k] = n end
+            table.sort(sorted, function(x, y) return (orderOf[x] or 0) < (orderOf[y] or 0) end)
+            local mine = 0
+            for _, k in ipairs(sorted) do
+                team[k] = true
+                names[#names + 1] = MMT.ShownName(k)
+                mine = mine + (a.chars[k][field] or 0)
+            end
             local others = 0
-            for k, c in pairs(a.chars) do if k ~= key then others = others + (c[field] or 0) end end
-            rows[#rows + 1] = { MMT.ShownName(key), fmt(mine), fmt(others), fmt(mine + others),
+            for k, c in pairs(a.chars) do if not team[k] then others = others + (c[field] or 0) end end
+            rows[i] = { table.concat(names, " + "), fmt(mine), fmt(others), fmt(mine + others),
                 tip = function(t)
                     t:SetText(mod.AccountLabel(acc))
                     local list = {}
                     for k, c in pairs(a.chars) do list[#list + 1] = { k, c } end
                     table.sort(list, function(x, y) return (x[2][field] or 0) > (y[2][field] or 0) end)
-                    for _, e in ipairs(list) do
-                        local c = e[2]
+                    for _, en in ipairs(list) do
+                        local c = en[2]
                         local age = c.s and ("  |cff888888" .. SecondsToTime(math.max(60, time() - c.s), true) .. " ago|r") or ""
-                        t:AddDoubleLine(mod.CharName(e[1], c.c) .. age, fmt(c[field] or 0), 1, 1, 1, 1, 1, 1)
+                        local mark = team[en[1]] and "" or "  |cff888888(not in the team)|r"
+                        t:AddDoubleLine(mod.CharName(en[1], c.c) .. mark .. age, fmt(c[field] or 0), 1, 1, 1, 1, 1, 1)
                     end
                     if not a.own and a.at then
                         t:AddLine(("Received %s ago."):format(SecondsToTime(math.max(60, time() - a.at), true)), 0.5, 0.5, 0.5)
@@ -279,17 +304,131 @@ M.Page = function(_, page)
     end
 
     -- Gold ---------------------------------------------------------------------
-    local g = panels.gold
+    local gold = panels.gold
+    -- sub tabs: Overview | Earnings | Expenses
+    local goldSub, subButtons, subPanels = M.db.goldTab or "overview", {}, {}
+    local SUBS = { { "overview", "Overview" }, { "earn", "Earnings" }, { "spend", "Expenses" } }
+    local function ShowSub(key)
+        goldSub = key
+        M.db.goldTab = key
+        for k, p in pairs(subPanels) do p:SetShown(k == key) end
+        for k, b in pairs(subButtons) do
+            if k == key then b.label:SetTextColor(A[1], A[2], A[3]) else b.label:SetTextColor(0.7, 0.7, 0.7) end
+        end
+        if mod.Redraw then mod.Redraw() end
+    end
+    for i, t in ipairs(SUBS) do
+        local b = UI.Button(gold, 110, t[2], function() ShowSub(t[1]) end)
+        b:SetHeight(20)
+        b:SetPoint("TOPLEFT", (i - 1) * 116, 0)
+        subButtons[t[1]] = b
+        local p = CreateFrame("Frame", nil, gold)
+        p:SetPoint("TOPLEFT", 0, -26)
+        p:SetSize(PAGE_W, 494)
+        subPanels[t[1]] = p
+    end
+    local function ScopeDropdown(parent)
+        return UI.Dropdown(parent, 300, "Show", mod.ScopeChoices,
+            function() return M.db.chartScope end, function(v) M.db.chartScope = v; mod.Redraw() end)
+    end
+
+    -- Overview
+    local g = subPanels.overview
     local gc = UI.Column(g, 0, 0, PAGE_W)
     gc:Header("Gold per account")
-    local goldTable = Table(g, { "Account", "This Character", "Other Characters", "Combined" })
-    gc:Add(goldTable, ROW_H * (ROWS + 1) + 14)
-    gc:Header("Combined gold, last 60 days")
-    local scope = UI.Dropdown(g, 300, "Show", mod.ScopeChoices,
-        function() return M.db.chartScope end, function(v) M.db.chartScope = v; mod.Redraw() end)
-    gc:Add(scope, UI.ROW + 6)
-    local chart = mod.CreateChart(g, PAGE_W, 200)
-    gc:Add(chart, 206)
+    local goldTable = Table(g, { "Account", "Team Characters", "Other Characters", "Combined" })
+    gc:Add(goldTable, ROW_H * (ROWS + 1) + 8)
+    gc:Header("Gold, earned and spent, last 60 days")
+    local scope = ScopeDropdown(g)
+    gc:Add(scope, UI.ROW + 4)
+    local flowLine = UI.Label(g, "")
+    gc:Add(flowLine, 18)
+    local chart = mod.CreateChart(g, PAGE_W, 190)
+    gc:Add(chart, 196)
+
+    -- Earnings / Expenses: by category, then the game's own count
+    local FCOLS = { 300, 420, 540, PAGE_W - 8 }   -- right edges: today | 7 days | 60 days | since tracking
+    local function FlowTable(parent, rowsN)
+        local f = CreateFrame("Frame", nil, parent)
+        f:SetSize(PAGE_W, ROW_H * (rowsN + 1) + 4)
+        local heads = { "Category", "Today", "Last 7 days", "Last 60 days", "Since tracking" }
+        for i, text in ipairs(heads) do
+            local l = UI.Label(f, text, "GameFontNormal")
+            if i == 1 then l:SetPoint("TOPLEFT", 8, -3) else l:SetPoint("TOPRIGHT", f, "TOPLEFT", FCOLS[i - 1], -3) end
+            l:SetTextColor(A[1], A[2], A[3])
+        end
+        f.rows = {}
+        for r = 1, rowsN do
+            local row = CreateFrame("Frame", nil, f)
+            row:SetSize(PAGE_W, ROW_H)
+            row:SetPoint("TOPLEFT", 0, -ROW_H * r - 2)
+            H.RowBackground(row, r)
+            row.cells = {}
+            for c = 1, 5 do
+                local l = UI.Label(row, "")
+                if c == 1 then l:SetPoint("LEFT", 8, 0) l:SetJustifyH("LEFT")
+                else l:SetPoint("RIGHT", row, "LEFT", FCOLS[c - 1], 0) l:SetJustifyH("RIGHT") end
+                row.cells[c] = l
+            end
+            f.rows[r] = row
+        end
+        function f:Fill(list)
+            for r, row in ipairs(self.rows) do
+                local d = list[r]
+                row:SetShown(d ~= nil)
+                if d then
+                    for c = 1, 5 do
+                        row.cells[c]:SetText(d[c] or "")
+                        if d.total then row.cells[c]:SetTextColor(1, 1, 1)
+                        elseif c == 1 then row.cells[c]:SetTextColor(0.85, 0.85, 0.85)
+                        else row.cells[c]:SetTextColor(0.75, 0.75, 0.75) end
+                    end
+                end
+            end
+        end
+        return f
+    end
+    local flowViews = {}
+    for _, side in ipairs({ "earn", "spend" }) do
+        local p = subPanels[side]
+        local col = UI.Column(p, 0, 0, PAGE_W)
+        col:Header(side == "earn" and "Gold earned, by category" or "Gold spent, by category")
+        local sd = ScopeDropdown(p)
+        col:Add(sd, UI.ROW + 4)
+        local cats = side == "earn" and mod.EARN_CATS or mod.SPEND_CATS
+        local ft = FlowTable(p, #cats + 1)
+        col:Add(ft, ROW_H * (#cats + 2) + 6)
+        local note = col:Note("")
+        col:Header("The game's own count (this character, all time)")
+        local gameLines = UI.Label(p, "")
+        gameLines:SetJustifyH("LEFT")
+        gameLines:SetSpacing(3)
+        col:Add(gameLines, 100)
+        flowViews[side] = { scope = sd, table = ft, note = note, game = gameLines, cats = cats }
+    end
+    local function DrawFlowView(side)
+        local v = flowViews[side]
+        v.scope.Refresh()
+        local f = mod.FlowSummary(M.db.chartScope)
+        local key = side == "earn" and "e" or "s"
+        local rows, sums = {}, { 0, 0, 0, 0 }
+        for _, cat in ipairs(v.cats) do
+            local vals = { f.today[key][cat] or 0, f.week[key][cat] or 0, f.cats[key][cat] or 0, f.life[key][cat] or 0 }
+            for i = 1, 4 do sums[i] = sums[i] + vals[i] end
+            rows[#rows + 1] = { cat, mod.Money(vals[1]), mod.Money(vals[2]), mod.Money(vals[3]), mod.Money(vals[4]) }
+        end
+        rows[#rows + 1] = { "Total", mod.Money(sums[1]), mod.Money(sums[2]), mod.Money(sums[3]), mod.Money(sums[4]), total = true }
+        v.table:Fill(rows)
+        v.note:SetText(f.since and ("Tracked since %s. Sorted by what was open when the gold changed (vendor, mailbox, flight master, trade, ...)."):format(date("%Y-%m-%d", f.since))
+            or "Nothing tracked yet: earnings and expenses are counted from this version on.")
+        local lines = {}
+        for _, w in ipairs(mod.GameWealth()) do
+            if w[2] == key or (side == "earn" and w[2] == "o") then
+                lines[#lines + 1] = ("|cffb0b0b0%s:|r  %s"):format(w[1], w[3] and mod.Money(w[3]) or "-")
+            end
+        end
+        v.game:SetText(#lines > 0 and table.concat(lines, "\n") or "-")
+    end
 
     -- Kills --------------------------------------------------------------------
     local k = panels.kills
@@ -1191,9 +1330,17 @@ M.Page = function(_, page)
     function mod.Redraw()
         if not page:IsVisible() then return end
         if current == "gold" then
-            goldTable:Show_(MemberRows("g", mod.Money))
-            scope.Refresh()
-            chart:SetData(mod.GoldSeries(M.db.chartScope), mod.Money)
+            if goldSub == "overview" then
+                goldTable:Show_(AccountRows("g", mod.Money))
+                scope.Refresh()
+                local f = mod.FlowSummary(M.db.chartScope)
+                chart:SetData(mod.GoldSeries(M.db.chartScope), mod.Money)
+                if chart.SetFlows then chart:SetFlows(f.days, mod.Money) end
+                flowLine:SetText(("|cff66dd66Earned %s|r   |cffee6666Spent %s|r   Net %s   |cff888888(last 60 days)|r"):format(
+                    mod.Money(f.total.e), mod.Money(f.total.s), (f.total.e >= f.total.s and "" or "-") .. mod.Money(math.abs(f.total.e - f.total.s))))
+            else
+                DrawFlowView(goldSub)
+            end
         elseif current == "kills" then
             DrawKills()
         elseif current == "quests" then
@@ -1216,6 +1363,7 @@ M.Page = function(_, page)
     request:SetFrameLevel(page:GetFrameLevel() + 10)
     UI.Tooltip(request, "Request update", "Asks every team member for their gold statistics now (each answers out of combat, within about 20 seconds) and sends this account's too. Needs \"Share with the team\".")
     Show("gold")
+    ShowSub(goldSub)
 end
 
 -- /mmtstats and a key (key binding menu > MMT (Manage My Team) > Statistics) open the page

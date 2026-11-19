@@ -29,6 +29,7 @@ local M = MMT.NewModule({
     syncExclude = { "chartScope", "killScope", "exportKind", "exportScope", "exportSep", "questScope", "levelScope", "zoneScope", "zoneView", "killKind", "killZone", "profScope", "profFilter" },
     defaults = {
         trackGold   = true,
+        trackFlow   = true,      -- earnings and expenses (Money.lua)
         trackKills  = true,
         trackQuests = true,     -- accepted / completed / abandoned (Quests.lua)
         share       = true,     -- send and receive account summaries
@@ -219,6 +220,7 @@ function mod.OwnAccount()
         id = mod.AccountId(), owner = MMT.PlayerFull(), own = true, at = time(),
         chars = chars, days = mod.OwnDayTotals(),
         kills = OwnSums("kills"), deaths = OwnSums("deaths"),
+        flow = mod.OwnFlowRecord and mod.OwnFlowRecord() or nil,
     }
 end
 
@@ -362,7 +364,7 @@ function mod.SendSummary()
     -- gold only: kills, quests, levels and zones stay on this account
     local chars = {}
     for key, c in pairs(a.chars) do chars[key] = { c = c.c, g = c.g, s = c.s } end
-    local summary = { id = a.id, chars = chars, days = a.days }
+    local summary = { id = a.id, chars = chars, days = a.days, flow = a.flow }
     MMT.SendLong("STA:" .. MMT.Pack(MMT.Serialize(summary)))
 end
 
@@ -479,6 +481,7 @@ M:Listen("TEAM_MESSAGE", function(key, sender, text)
         days = type(t.days) == "table" and t.days or {},
         kills = type(t.kills) == "table" and t.kills or {},
         deaths = type(t.deaths) == "table" and t.deaths or {},
+        flow = type(t.flow) == "table" and t.flow or nil,
     }
     if mod.Redraw then mod.Redraw() end
 end)
@@ -518,6 +521,13 @@ M.Report = function(_, add)
     local ver = getMeta and getMeta("MMT_Statistics", "Version") or "?"
     add(("-- Statistics %s  account=%s characters=%d otherAccounts=%d gold=%s kills=%s share=%s"):format(
         tostring(ver), s.accountId, nChars, nAcc, tostring(M.db.trackGold), tostring(M.db.trackKills), tostring(M.db.share)))
+    if mod.OwnFlowRecord then
+        local f = mod.OwnFlowRecord()
+        local function Sum(t) local n = 0 for _, v in pairs(t or {}) do n = n + v end return n end
+        add(("  money: tracking=%s since=%s  today earned=%d spent=%d  60 days earned=%d spent=%d (copper)"):format(
+            tostring(M.db.trackFlow ~= false), f.since and date("%Y-%m-%d", f.since) or "-",
+            Sum(f.today and f.today.e), Sum(f.today and f.today.s), Sum(f.cats.e), Sum(f.cats.s)))
+    end
     for key, c in pairs(s.chars) do
         local n = 0
         for _ in pairs(c.days or {}) do n = n + 1 end

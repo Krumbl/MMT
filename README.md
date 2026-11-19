@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.15: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.16: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -479,7 +479,7 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   and distance window in the "Miscellaneous" side window): gossip to vendor, bank or flight map, click through dialog-only NPCs (plain
   dialog lines; anything that could cost gold, teleport, train or start a fight stays
   manual), invites (team, friends, guild, and anyone who whispers the keyword, default
-  "mybox"), camera zoom, distance window (distance to your target, mostly for hunters
+  "mybox"), camera zoom, distance window (off by default; distance to your target, mostly for hunters
   avoiding the dead zone; font, outline, alignment, size, width and background are in
   "Format window", a small window beside the settings).
   - "Take flight paths with the team": when a team member picks a destination at a

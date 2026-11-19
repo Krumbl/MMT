@@ -159,7 +159,7 @@ ns.defaults = {
                  auto = false, autoDelay = 8, retries = 1, raid = true },   -- Team Invite (TeamInvite.lua)
     camera   = { enabled = true, factor = 2.6 },
     distance = {
-        enabled = true, locked = false, hideNoTarget = false, colorize = false,
+        enabled = false, locked = false, hideNoTarget = false, colorize = false,
         font = "Friz Quadrata", size = 14, outline = "OUTLINE", align = "CENTER",
         bgAlpha = 0.25, width = 90, point = { "CENTER", "CENTER", 0, -160 },
     },

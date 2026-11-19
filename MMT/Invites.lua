@@ -29,17 +29,55 @@ local function Relation(guid, name)
     return nil
 end
 
-ns.On("PARTY_INVITE_REQUEST", function(name, _, _, _, _, _, inviterGUID)
+ns.On("PARTY_INVITE_REQUEST", function(name, ...)
+    -- the inviter's GUID: its place in the event differs between clients
+    local inviterGUID
+    for i = 1, select("#", ...) do
+        local v = select(i, ...)
+        if type(v) == "string" and not ns.IsSecret(v) and v:match("^Player%-") then inviterGUID = v break end
+    end
     local who = ns.NameFromGUID(inviterGUID, name)
     ns.Debug("INVITE from %s (name %s, guid %s)", who, ns.Repr(name), tostring(inviterGUID))
 
     local relation = Relation(inviterGUID, name)
-    if not relation then return end
+    if not relation then
+        ns.Debug("INVITE not accepted: %s isn't a team member, friend or guild member by the settings (team=%s resolve=%s)",
+            ns.Repr(name), tostring(ns.db.invites.team), ns.Repr(ns.Resolve(name)))
+        return
+    end
 
     -- the game closes its invite popup itself once you're in the group;
     -- closing it from addon code (StaticPopup_Hide) would taint Blizzard's popups
-    AcceptGroup()
+    local ok, err = pcall(AcceptGroup)
+    ns.Debug("INVITE accepted (%s): AcceptGroup -> %s %s; in a group: %s", relation, tostring(ok), tostring(err or ""), tostring(IsInGroup()))
+    C_Timer.After(2, function() ns.Debug("INVITE 2 s later: in a group: %s, members %s", tostring(IsInGroup()), tostring(GetNumGroupMembers())) end)
     ns.Print("Accepted group invite from %s (%s).", who, relation)
+end)
+
+-- group changes, for the debug log (who is in, who leads)
+local lastRoster
+ns.On("GROUP_ROSTER_UPDATE", function()
+    local n = IsInGroup() and GetNumGroupMembers() or 0
+    local line = ("%d member(s), raid=%s, leader=%s"):format(n, tostring(IsInRaid()), tostring(UnitIsGroupLeader("player")))
+    if line ~= lastRoster then
+        lastRoster = line
+        ns.Debug("GROUP %s", line)
+    end
+end)
+ns.On("GROUP_LEFT", function() ns.Debug("GROUP left") end)
+-- the game's group lines ("X joins the party.", "X declines your group invitation.", ...)
+ns.On("CHAT_MSG_SYSTEM", function(msg)
+    if type(msg) ~= "string" or ns.IsSecret(msg) then return end
+    local l = msg:lower()
+    if l:find("group") or l:find("party") or l:find("invit") or l:find("raid") then
+        ns.Debug("GROUP system: %s", ns.ReplaceNames and ns.ReplaceNames(msg, true) or msg)
+    end
+end)
+ns.On("PARTY_INVITE_CANCEL", function() ns.Debug("INVITE cancelled (by the inviter or timed out)") end)
+ns.On("UI_ERROR_MESSAGE", function(_, msg)
+    if type(msg) == "string" and not ns.IsSecret(msg) and (msg:lower():find("group") or msg:lower():find("party") or msg:lower():find("invite")) then
+        ns.Debug("GROUP error: %s", msg)
+    end
 end)
 
 ---------------------------------------------------------------------------

@@ -305,6 +305,12 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     "Reset session" starts a new session in that window only. Lock, font and font size in
     the Settings tab; redrawn at most once a second. "Sync to team" sends it along: on or
     off, position, lock, font and size.
+    With the damage meter (HUF's, or EllesmereUI's when that one is used): "Meter look" takes
+    the meter's title bar, background, edge and font; "Dock" puts it above, below, left or
+    right of a meter window ("Window"), where it moves, resizes and fades with it; "Fill the
+    space" (on) lines it up with a taller window beside it. Dragging it next to a meter
+    window (within 30 px) docks it there, dragging it away frees it again. Without a meter
+    it keeps its own look and position.
   - Export (Settings tab): CSV text to copy into a spreadsheet or a .csv file (addons can't
     write files): gold per day and character, gold per day and account, characters, kills
     and deaths per NPC (with their kind), the kill summary per character, kills by zone and

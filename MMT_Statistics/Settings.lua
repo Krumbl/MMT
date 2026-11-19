@@ -1061,15 +1061,53 @@ M.Page = function(_, page)
     end, function() return M.db.liveFont end, function(v) M.db.liveFont = v mod.UpdateLiveTracker() end)
     SR:Slider("Font size", 8, 16, 1, function() return M.db.liveSize or 10 end,
         function(v) M.db.liveSize = v mod.UpdateLiveTracker() end)
+    -- with HUF's or EllesmereUI's damage meter: its look, and a place on its window (LiveTracker.lua).
+    -- Two per row, so the page keeps its height (the Export section below has no room to spare).
+    local meterTip = "Needs HUF's damage meter, or EllesmereUI's Damage Meters (EllesmereUIDamageMeters)."
+    local HALF = math.floor((COL_W - 8) / 2)
+    local function Pair(left, right, h)
+        SR:Add(left, h)
+        right:ClearAllPoints()
+        right:SetPoint("LEFT", left, "LEFT", HALF + 8, 0)
+    end
+    local lookCheck = UI.Check(s, HALF, "Meter look", function() return M.db.liveLook == "METER" end,
+        function(v) M.db.liveLook = v and "METER" or "MMT" mod.UpdateLiveTracker() end,
+        "The live tracker takes the look of your damage meter (HUF's, or EllesmereUI's): its title bar (height, colour, accent line), its background and edge, and its font and font size (the two settings above are not used then). Changes in the meter's look show after reopening this page or /reload. " .. meterTip)
+    local fillCheck = UI.Check(s, HALF, "Fill the space", function() return M.db.liveFill ~= false end,
+        function(v) M.db.liveFill = v and true or false mod.UpdateLiveTracker() end,
+        "Docked above (or below) a meter window with another one beside it, the live tracker grows to line up with that one's top (or bottom), so it fills the gap. Beside a window it takes that window's height, stopping above any window below it.")
+    Pair(lookCheck, fillCheck, UI.ROW)
+    local dockCycle = UI.Dropdown(s, HALF, "Dock", {
+        { value = "OFF", text = "No" },
+        { value = "ABOVE", text = "Above" },
+        { value = "BELOW", text = "Below" },
+        { value = "LEFT", text = "Left" },
+        { value = "RIGHT", text = "Right" },
+    }, function() return M.db.liveDock or "OFF" end, function(v) M.db.liveDock = v mod.UpdateLiveTracker() end)
+    UI.Tooltip(dockCycle, "Dock to the damage meter", "On a window of your damage meter: above or below it as wide as it, or beside it. It moves, resizes and fades with the meter (move the meter to move both). Easier: drag the live tracker next to a meter window and let go - it docks there; drag it away and it is free again. " .. meterTip)
+    local winCycle = UI.Dropdown(s, HALF, "Window", function()
+        local l = {}
+        for i = 1, 4 do l[#l + 1] = { value = i, text = tostring(i) } end
+        return l
+    end, function() return M.db.liveDockWin or 1 end, function(v) M.db.liveDockWin = v mod.UpdateLiveTracker() end)
+    UI.Tooltip(winCycle, "Meter window", "Which of the meter's windows it docks to (1 = the first). Dragging it onto a window picks that one.")
+    Pair(dockCycle, winCycle, UI.ROW + 2)
+    local meterRefresh = function()
+        local on = mod.MeterLoaded and mod.MeterLoaded()
+        lookCheck:SetAlpha(on and 1 or 0.4)
+    end
+    s:HookScript("OnShow", meterRefresh)
+    meterRefresh()
     SR:Header("Data")
-    SR:Note("Accounts: every WoW account keeps its own data. Other accounts are named after the team member that sent them (\"Account of Hunter 2\").")
-    SR:Add(H.ConfirmButton(s, COL_W, "Clear this account's statistics", function()
+    local accountsTip = "Every WoW account keeps its own data. Other accounts are named after the team member that sent them (\"Account of Hunter 2\")."
+    local clearB = SR:Add(H.ConfirmButton(s, COL_W, "Clear this account's statistics", function()
         local st = mod.Store()
         wipe(st.chars)
         mod.RecordGold()
         mod.Redraw()
         MMT.Print("Statistics of this account cleared.")
     end), UI.ROW + 4)
+    UI.Tooltip(clearB, "Clear this account's statistics", accountsTip)
     local scanButton = UI.Button(s, COL_W, "Scan completed quests", function()
         local added, updated, inLog, unnamed = mod.ScanQuests()
         MMT.Print("Statistics: %d completed %s found that MMT didn't know yet%s%s.%s", added,
@@ -1080,13 +1118,14 @@ M.Page = function(_, page)
     end)
     SR:Add(scanButton, UI.ROW + 4)
     UI.Tooltip(scanButton, "Scan completed quests", "Asks the game which quests this character has completed (like Questie does on its first login) and adds the ones MMT doesn't know yet, without date, experience and money. Quests MMT already tracked keep their details. Names and levels come from Questie's database when it is installed, else from the game.")
-    SR:Add(H.ConfirmButton(s, COL_W, "Forget other accounts", function()
+    local forgetB = SR:Add(H.ConfirmButton(s, COL_W, "Forget other accounts", function()
         local st = mod.Store()
         wipe(st.accounts)
         wipe(st.memberAccount)
         mod.Redraw()
         MMT.Print("Statistics of other accounts forgotten. They come back when the team sends them again.")
     end), UI.ROW + 4)
+    UI.Tooltip(forgetB, "Forget other accounts", accountsTip .. " Forgotten accounts come back when the team sends them again.")
 
     -- Export (CSV) ---------------------------------------------------------------
     local EX = UI.Column(s, 0, math.min(SL.y, SR.y) - 4, PAGE_W)

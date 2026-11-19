@@ -21,6 +21,8 @@
 -- moment invites them.
 -- Manual (key binding, /mmt invite, middle-click): the client you press it on
 -- invites at once, with the same retries.
+-- Only members MMT knows to be online are invited (heartbeat or INVQ / INVA),
+-- and never into a full party unless MMT made it a raid.
 -- Raid: only with "Allow creation of raid" and more than 5 team members, the
 -- full party becomes a raid so the rest can join.
 
@@ -37,6 +39,7 @@ local seen = {}        -- [key] = { t = GetTime(), lead = true/false }
 local invitedAt = {}   -- [key] = GetTime() of our last invite
 local generation = 0   -- a new run cancels the passes of the old one
 local lastAnswer = 0
+local fullNoted = -1   -- the run that already said "the party is full"
 
 local function Cfg() return ns.db and ns.db.invites end
 
@@ -73,6 +76,7 @@ local function MaybeRaid()
         end
     end
     if not waiting then return end
+    ns.Debug("TEAM INVITE party full, converting to a raid")
     local convert = (C_PartyInfo and C_PartyInfo.ConvertToRaid) or ConvertToRaid
     if convert and pcall(convert) then
         stats.raids = stats.raids + 1
@@ -80,16 +84,34 @@ local function MaybeRaid()
     end
 end
 
--- the online team members not in the group (and not invited a moment ago), team order
-local function Missing(onlyOnline)
-    local list = {}
+local function Online(key)
+    return ns.IsOnline(key) or (seen[key] and GetTime() - seen[key].t < SEEN_FOR) and true or false
+end
+
+-- the online team members not in the group (and not invited a moment ago), team
+-- order; offline ones are never invited (the second list: for the note)
+local function Missing()
+    local list, offline = {}, {}
     for _, key in ipairs(ns.SortedMembers()) do
-        if not InGroup(key) and (not onlyOnline or ns.IsOnline(key) or (seen[key] and GetTime() - seen[key].t < SEEN_FOR))
-            and not (invitedAt[key] and GetTime() - invitedAt[key] < PENDING_TTL) then
-            list[#list + 1] = key
+        if not InGroup(key) then
+            if not Online(key) then
+                offline[#offline + 1] = key
+            elseif not (invitedAt[key] and GetTime() - invitedAt[key] < PENDING_TTL) then
+                list[#list + 1] = key
+            end
         end
     end
-    return list
+    return list, offline
+end
+
+-- room in the group for one more invite (members + invites still pending)
+local function HasRoom()
+    if IsInRaid() then return true end
+    local n = IsInGroup() and (GetNumGroupMembers() or 1) or 1
+    for key, t in pairs(invitedAt) do
+        if GetTime() - t < PENDING_TTL and not InGroup(key) then n = n + 1 end
+    end
+    return n < 5
 end
 
 -- one pass, then the retries: left = passes still to come after this one
@@ -105,11 +127,16 @@ local function Pass(gen, left, manual)
     end
     stats.passes = stats.passes + 1
     MaybeRaid()
-    -- manual: everybody missing (offline ones just fail quietly); automatic: the online ones
-    local todo = Missing(not manual)
+    local todo, offline = Missing()
+    local first = left == math.max(0, math.floor(tonumber(Cfg().retries) or 0))
+    if manual and first and #offline > 0 then
+        local names = {}
+        for _, key in ipairs(offline) do names[#names + 1] = ns.ShownName(key) end
+        ns.Print("Team Invite: not inviting %s (offline).", ns.AndList(names))
+    end
     if #todo == 0 then
-        if manual and left == (Cfg().retries or 0) then ns.Print("Team Invite: the whole team is in your group already.") end
-        ns.Debug("TEAM INVITE pass: nobody missing (%d retries left)", left)
+        if manual and first and #offline == 0 then ns.Print("Team Invite: the whole team is in your group already.") end
+        ns.Debug("TEAM INVITE pass: nobody online missing (%d retries left)", left)
         return
     end
     local sent = {}
@@ -117,7 +144,16 @@ local function Pass(gen, left, manual)
     for i, key in ipairs(todo) do
         C_Timer.After((i - 1) * INVITE_GAP, function()
             if gen ~= generation or InGroup(key) then return end
-            MaybeRaid()
+            -- never invite into a full party (the game may turn it into a raid):
+            -- only after MMT made it a raid (option on, more than 5 team members)
+            if not HasRoom() then MaybeRaid() end
+            if not HasRoom() then
+                if fullNoted ~= gen then
+                    fullNoted = gen
+                    ns.Print("Team Invite: the party is full; %s not invited (\"Allow creation of raid\" is off or the team has 5 members or fewer).", ns.ShownName(key))
+                end
+                return
+            end
             local ok, err = pcall(invite, ns.WhisperTarget(key))
             invitedAt[key] = GetTime()
             stats.invites = stats.invites + 1
@@ -236,7 +272,7 @@ ns.On("GROUP_ROSTER_UPDATE", function()
     for key in pairs(invitedAt) do
         if ns.UnitForMember(key) then invitedAt[key] = nil end
     end
-    if stats.lastInviter and ns.IsSelf(stats.lastInviter) and #Missing(true) > 0 then MaybeRaid() end
+    if stats.lastInviter and ns.IsSelf(stats.lastInviter) and #(Missing()) > 0 then MaybeRaid() end
 end)
 
 function ns.TeamInviteReport(add)

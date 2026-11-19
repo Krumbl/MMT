@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.14: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.15: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -67,6 +67,8 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   becomes a raid; with 5 or fewer never. Invite right away from the client you're on:
   key binding "Invite the team" (Key Bindings > MMT, also on this tile), `/mmt invite`
   or middle-click on the Info window - all three do the same, without the delay.
+  Only members MMT knows to be online are invited, and never into a full party unless MMT
+  made it a raid.
   The others accept through "Accept from team members" (Automations > Socializing).
   Keep the setting the same on every client (Profiles > Sync to team).
   **Privacy**: "Show characters by" first name (default), last name, full name, class

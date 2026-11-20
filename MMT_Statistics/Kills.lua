@@ -38,7 +38,7 @@ end
 -- whose name the game hides). Within PAIR seconds one of each is one kill:
 -- an unknown after a named kill is dropped, a named kill after an unknown one
 -- takes its place (the unknown is renamed).
-local PAIR = 3
+local PAIR = 8   -- was 3: the second line of a kill can come several seconds later
 local namedLog, unknownLog = {}, {}   -- { t, used, name } of the last few seconds
 local function OldestUnused(log, now)
     local found

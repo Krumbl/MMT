@@ -528,6 +528,7 @@ M.Report = function(_, add)
             tostring(M.db.trackFlow ~= false), f.since and date("%Y-%m-%d", f.since) or "-",
             Sum(f.today and f.today.e), Sum(f.today and f.today.s), Sum(f.cats.e), Sum(f.cats.s)))
     end
+    if mod.SessionKillsReport then mod.SessionKillsReport(add) end
     for key, c in pairs(s.chars) do
         local n = 0
         for _ in pairs(c.days or {}) do n = n + 1 end

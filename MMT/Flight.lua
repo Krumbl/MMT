@@ -9,8 +9,9 @@
 -- takes, so each landing stores the time of the route (from -> to) in MMTDB
 -- (this account, all characters). Each landing checks the stored time again: a
 -- difference of up to 2 seconds is averaged (lag), a bigger one replaces it.
--- Routes not flown yet use the times that come with MMT (FlightTimes.lua); the
--- rest show no time on their first flight. "/mmt flights" exports them all.
+-- Routes not flown yet use the times that come with MMT (FlightTimes.lua: by
+-- taxi node ID, from the InFlight addon, then by name); the rest show no time
+-- on their first flight. "/mmt flights" exports them all.
 
 local _, ns = ...
 
@@ -30,10 +31,23 @@ local function Clean(name)   -- "Ironforge, Dun Morogh" -> "Ironforge"; nothing 
 end
 local function Route(from, to) return (from or "?") .. ">" .. (to or "?") end
 
+-- the time that comes with MMT: by taxi node ID (own faction first), else by name
+local function DefaultTime(from, to, fromID, toID)
+    local nodes = ns.DEFAULT_FLIGHT_NODES
+    if nodes and fromID and toID then
+        local own = UnitFactionGroup and Plain(ns.Safe(UnitFactionGroup, "player"))
+        local first = own == "Horde" and "Horde" or "Alliance"
+        for _, fac in ipairs({ first, first == "Horde" and "Alliance" or "Horde" }) do
+            local t = nodes[fac] and nodes[fac][fromID]
+            if t and t[toID] then return t[toID] end
+        end
+    end
+    return (ns.DEFAULT_FLIGHT_TIMES or {})[Route(from, to)]
+end
+
 -- seconds of a route: this account's own time, else the one that comes with MMT
-function ns.FlightTime(from, to)
-    local key = Route(from, to)
-    return Times()[key] or (ns.DEFAULT_FLIGHT_TIMES or {})[key]
+function ns.FlightTime(from, to, fromID, toID)
+    return Times()[Route(from, to)] or DefaultTime(from, to, fromID, toID)
 end
 
 ---------------------------------------------------------------------------
@@ -52,16 +66,30 @@ local function CurrentNode()
     if NumTaxiNodes and TaxiNodeGetType then
         for i = 1, (tonumber(Plain(ns.Safe(NumTaxiNodes))) or 0) do
             local ok, kind = pcall(TaxiNodeGetType, i)
-            if ok and kind == "CURRENT" then return NodeName(i) end
+            if ok and kind == "CURRENT" then return NodeName(i), i end
         end
+    end
+    return nil
+end
+-- the game's taxi node ID of a flight map slot (the same in every client language)
+local function NodeID(index)
+    if not (index and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and GetTaxiMapID) then return nil end
+    local okMap, map = pcall(GetTaxiMapID)
+    if not okMap or not Plain(map) then return nil end
+    local ok, nodes = pcall(C_TaxiMap.GetAllTaxiNodes, map)
+    for _, node in ipairs(ok and type(nodes) == "table" and nodes or {}) do
+        if Plain(node.slotIndex) == index then return Plain(node.nodeID) end
     end
     return nil
 end
 
 if hooksecurefunc and TakeTaxiNode then
     hooksecurefunc("TakeTaxiNode", function(index)
-        take = { from = Clean(CurrentNode()), to = Clean(NodeName(index)), at = GetTime() }
-        ns.Debug("flight: picked %s -> %s", tostring(take.from), tostring(take.to))
+        local fromName, fromIndex = CurrentNode()
+        take = { from = Clean(fromName), to = Clean(NodeName(index)), at = GetTime(),
+                 fromID = NodeID(fromIndex), toID = NodeID(index) }
+        ns.Debug("flight: picked %s (%s) -> %s (%s)", tostring(take.from), tostring(take.fromID),
+            tostring(take.to), tostring(take.toID))
     end)
 end
 
@@ -83,8 +111,8 @@ local function Push() if ns.ready and ns.BroadcastXP then ns.BroadcastXP(true) e
 local function TakeOff()
     local t = (take and GetTime() - take.at < TAKE_GRACE) and take or {}
     take = nil
-    flight = { from = t.from, to = t.to, start = GetTime() }
-    if t.from and t.to then flight.expect = ns.FlightTime(t.from, t.to) end
+    flight = { from = t.from, to = t.to, fromID = t.fromID, toID = t.toID, start = GetTime() }
+    if t.from and t.to then flight.expect = ns.FlightTime(t.from, t.to, t.fromID, t.toID) end
     ns.Debug("flight: took off %s -> %s, known time %s", tostring(flight.from), tostring(flight.to), tostring(flight.expect))
     Push()
 end
@@ -96,7 +124,7 @@ local function Land()
         local took = GetTime() - f.start
         if took > 5 then
             local key = Route(f.from, f.to)
-            local old = Times()[key] or (ns.DEFAULT_FLIGHT_TIMES or {})[key]
+            local old = ns.FlightTime(f.from, f.to, f.fromID, f.toID)
             -- checked on every landing: up to 2 s off is lag (averaged), more replaces it
             local new
             if old and math.abs(took - old) <= 2 then new = (old + took) / 2 else new = took end
@@ -243,7 +271,8 @@ function ns.FlightReport(add)
     local n = 0
     for _ in pairs(Times()) do n = n + 1 end
     add(("-- Flight  on taxi=%s  flight=%s  routes learned=%d  hint=%s"):format(tostring(OnTaxi()),
-        flight and (Route(flight.from, flight.to) .. " expect=" .. tostring(flight.expect)) or "none", n,
+        flight and (Route(flight.from, flight.to) .. (" (%s>%s)"):format(tostring(flight.fromID), tostring(flight.toID))
+            .. " expect=" .. tostring(flight.expect)) or "none", n,
         tostring(ns.db.xp.flightHint ~= false)))
     for _, key in ipairs(ns.SortedMembers()) do
         local s = ns.status[key]

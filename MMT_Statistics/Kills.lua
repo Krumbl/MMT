@@ -85,7 +85,16 @@ local function Count(name, guid, source)
         end
         namedLog[#namedLog + 1] = { t = now, name = name }
     end
-    if name == mod.UNKNOWN_NPC then unknownLog[#unknownLog + 1] = { t = now } end
+    if name == mod.UNKNOWN_NPC then
+        local entry = { t = now }
+        unknownLog[#unknownLog + 1] = entry
+        -- the debug log says when no named kill (XP line) came for it
+        C_Timer.After(PAIR + 0.5, function()
+            if not entry.used then
+                M:Debug("kill (unknown NPC) (%s): stayed unknown, no named kill (XP line) within %d s", source, PAIR)
+            end
+        end)
+    end
     c.kills[name] = (c.kills[name] or 0) + 1
     c.killTotal = (c.killTotal or 0) + 1
     if mod.OnKill then mod.OnKill(name) end   -- level / zone / instance (Leveling.lua)
@@ -169,6 +178,7 @@ M:On("PLAYER_TARGET_DIED", function()
     if not M.db.trackKills then return end
     D.targetDied = D.targetDied + 1
     if Safe(UnitIsPlayer, "target") then return end
+    if mod.SessionTargetDied and not Safe(UnitIsTapDenied, "target") then mod.SessionTargetDied() end
     if Safe(UnitIsTapDenied, "target") then D.tapDenied = D.tapDenied + 1 return end   -- someone else's
     local now = Plain(Safe(UnitName, "target"))
     local name = now or targetName
@@ -269,6 +279,7 @@ M:On("CHAT_MSG_COMBAT_XP_GAIN", function(msg)
     local name, xp = a, b
     if xpFirst then name, xp = b, a end
     if name then
+        M:Debug("xp line: %s, %s XP", name, tostring(xp))
         xpSeen[name] = GetTime() Count(name, nil, "xp")
         if mod.OnKillXP then mod.OnKillXP(tonumber(xp)) end
         if mod.SessionKillXP then mod.SessionKillXP(name, tonumber(xp)) end

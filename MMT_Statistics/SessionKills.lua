@@ -25,6 +25,9 @@ local guidName = {}     -- [guid] = npc name (kills of this session)
 local lastKill          -- { zone, name, t } of the last kill
 local lastNamed         -- the same, the last kill with a real name
 local lootSources       -- { { name, zone, share } } of the open loot window
+local deathLevels = {}  -- { { t, lvl, used } }: the level of targets as they died (names may be hidden)
+local unknownLevels = {} -- { { t, lvl } }: levels counted for unknown NPCs (moved on a rename)
+local LEVEL_FOR = 8     -- seconds a target's death level waits for its kill (Kills.lua PAIR)
 
 local function Plain(v)
     if v == nil or MMT.IsSecret(v) then return nil end
@@ -61,29 +64,57 @@ M:On("PLAYER_TARGET_CHANGED", function() SeeUnit("target") end)
 M:On("UPDATE_MOUSEOVER_UNIT", function() SeeUnit("mouseover") end)
 M:On("NAME_PLATE_UNIT_ADDED", function(unit) SeeUnit(unit) end)
 
+-- from Kills.lua: the target died; its level is read right away (the XP line
+-- naming it can come seconds later, when another NPC is targeted)
+function mod.SessionTargetDied()
+    local l = Safe(UnitLevel, "target")
+    local now = GetTime()
+    for i = #deathLevels, 1, -1 do
+        if now - deathLevels[i].t > LEVEL_FOR then table.remove(deathLevels, i) end
+    end
+    if l and l > 0 then deathLevels[#deathLevels + 1] = { t = now, lvl = l } end
+    M:Debug("session: target died, level %s", l and tostring(l) or "not readable")
+end
+
+local function OldestDeathLevel()
+    local now = GetTime()
+    for _, d in ipairs(deathLevels) do
+        if not d.used and now - d.t <= LEVEL_FOR then d.used = true return d.lvl end
+    end
+end
+
+-- level, and where it came from (for the debug log)
 local function LevelNow(name, guid)
     for _, unit in ipairs({ "target", "mouseover", "focus" }) do
         if guid and Safe(UnitGUID, unit) == guid or (not guid and Safe(UnitName, unit) == name) then
             local l = Safe(UnitLevel, unit)
-            if l and l > 0 then return l end
+            if l and l > 0 then return l, unit end
         end
     end
-    if levelOf[name] then return levelOf[name] end
-    -- instances hide names and GUIDs: the dead NPC you have targeted
+    if levelOf[name] then return levelOf[name], "seen before" end
+    -- instances hide names and GUIDs: the level of a target that died a moment ago
+    local d = OldestDeathLevel()
+    if d then return d, "target death" end
+    -- the dead NPC you have targeted
     if Safe(UnitExists, "target") and Safe(UnitIsDead, "target") and not Safe(UnitIsPlayer, "target") then
         local l = Safe(UnitLevel, "target")
-        if l and l > 0 then return l end
+        if l and l > 0 then return l, "dead target" end
     end
 end
 
 -- from Kills.lua
-function mod.SessionKill(name, guid)
+function mod.SessionKill(name, guid, carried)
     if not name then return end
     local zone = Zone()
     local e = Entry(zone, name)
     e.k = e.k + 1
-    local lvl = LevelNow(name, guid)
+    local lvl, from = LevelNow(name, guid)
+    if not lvl and carried then lvl, from = carried, "unknown NPC before" end
     if lvl then e.lvlSum = e.lvlSum + lvl; e.lvlN = e.lvlN + 1 end
+    if name == mod.UNKNOWN_NPC then unknownLevels[#unknownLevels + 1] = { t = GetTime(), lvl = lvl } end
+    M:Debug("session: %s in %s, level %s (%s)%s", name, zone, tostring(lvl), from or "not found",
+        lvl and "" or (" target: name %s, level %s, dead %s"):format(tostring(Safe(UnitName, "target") ~= nil),
+            tostring(Safe(UnitLevel, "target")), tostring(Safe(UnitIsDead, "target"))))
     if guid then guidName[guid] = name end
     lastKill = { zone = zone, name = name, t = GetTime() }
     if name ~= mod.UNKNOWN_NPC then lastNamed = lastKill end
@@ -94,12 +125,19 @@ function mod.SessionRename(old, new, guid)
     local zone = Zone()
     local z = data[zone]
     local from = z and z[old]
+    local carried
     if from and from.k > 0 then
         from.k = from.k - 1
+        -- its level goes with it
+        local u = table.remove(unknownLevels, 1)
+        if u and u.lvl and from.lvlN > 0 then
+            from.lvlSum, from.lvlN = from.lvlSum - u.lvl, from.lvlN - 1
+            carried = u.lvl
+        end
         if from.money > 0 then dirty[zone .. "\t" .. old] = true end
         if from.k <= 0 and from.xp == 0 and from.money == 0 then z[old] = nil end
     end
-    mod.SessionKill(new, guid)
+    mod.SessionKill(new, guid, carried)
 end
 
 function mod.SessionKillXP(name, xp)
@@ -170,6 +208,8 @@ end
 function mod.ResetSessionKills()
     wipe(data)
     wipe(guidName)
+    wipe(deathLevels)
+    wipe(unknownLevels)
     lastKill, lastNamed, lootSources = nil, nil, nil
     wipe(mlMoney)
     mlFrom = nil

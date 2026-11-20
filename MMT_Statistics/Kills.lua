@@ -76,6 +76,7 @@ local function Count(name, guid, source)
             if c.kills[mod.UNKNOWN_NPC] <= 0 then c.kills[mod.UNKNOWN_NPC] = nil end
             c.kills[name] = (c.kills[name] or 0) + 1
             if mod.RenameKill then mod.RenameKill(mod.UNKNOWN_NPC, name) end   -- level / zone lists (Leveling.lua)
+            if mod.SessionRename then mod.SessionRename(mod.UNKNOWN_NPC, name, guid) end   -- Session Kill-Details
             if mod.OnEncounterKill then mod.OnEncounterKill(name) end
             sources[source] = sources[source] + 1
             M:Debug("kill %s (%s): was counted as an unknown NPC a moment ago, renamed", name, source)
@@ -88,6 +89,7 @@ local function Count(name, guid, source)
     c.kills[name] = (c.kills[name] or 0) + 1
     c.killTotal = (c.killTotal or 0) + 1
     if mod.OnKill then mod.OnKill(name) end   -- level / zone / instance (Leveling.lua)
+    if mod.SessionKill then mod.SessionKill(name, guid) end   -- Session Kill-Details (SessionKills.lua)
     if mod.OnEncounterKill then mod.OnEncounterKill(name) end   -- an encounter's boss (KillTypes.lua)
     sources[source] = sources[source] + 1
     M:Debug("kill %s (%s): %s", name, source, mod.NpcKindText and mod.NpcKindText(name) or "?")
@@ -269,6 +271,7 @@ M:On("CHAT_MSG_COMBAT_XP_GAIN", function(msg)
     if name then
         xpSeen[name] = GetTime() Count(name, nil, "xp")
         if mod.OnKillXP then mod.OnKillXP(tonumber(xp)) end
+        if mod.SessionKillXP then mod.SessionKillXP(name, tonumber(xp)) end
     end
 end)
 

@@ -318,6 +318,11 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     "Reset session" starts a new session in that window only. Lock, font and font size in
     the Settings tab; redrawn at most once a second. "Sync to team" sends it along: on or
     off, position, lock, font and size.
+    "Kill details" (next to "Reset session") opens Session Kill-Details: every NPC this
+    character killed in the session - Zone | NPC | Avg Lvl | Kills | XP | XP / Kill | Money
+    (coins looted from its corpses; several corpses at once share them by what each had),
+    with totals; scroll with the mouse wheel. Kept in memory only: "Reset session", a login
+    or a reload start it empty.
     With the damage meter (HUF's, or EllesmereUI's when that one is used): "Meter look" takes
     the meter's title bar, background, edge and font; "Dock" puts it above, below, left or
     right of a meter window ("Window"), where it moves, resizes and fades with it; "Fill the

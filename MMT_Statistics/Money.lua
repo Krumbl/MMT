@@ -81,7 +81,12 @@ end
 M:On("PLAYER_MONEY", function()
     local now = Money()
     if not now then return end
-    if last and now ~= last then mod.RecordFlow(now - last, Category(now - last)) end
+    if last and now ~= last then
+        local delta = now - last
+        local cat = Category(delta)
+        mod.RecordFlow(delta, cat)
+        if cat == "Looted" and delta > 0 and mod.SessionLootMoney then mod.SessionLootMoney(delta) end   -- Session Kill-Details
+    end
     last = now
     if mod.Redraw then mod.Redraw() end
 end)

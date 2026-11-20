@@ -393,7 +393,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   "Destroy the cheapest item": button and key binding (Key Bindings > MMT), at once.
   Never / Always destroy: pick roles (several each); their item rules (Roles > Items) say
   which items count. "Always destroy" items go first, and "Right after looting" (on)
-  destroys them as soon as they land in the bags. Never in combat.
+  destroys them as soon as they land in the bags. Never in combat. Every automatic
+  destroy (bags full, always destroy, asked by the team) is told to the FTL leader
+  (NOTE:DJ), who gets one line for several characters a few seconds later.
   Other addons can pick the receiver of an item first with `MMT.RegisterLootChooser`
   (see CreateModules.md); what they leave goes by the roles as above.
   "Auto-Round Robin quest items": quest items go to the team in turns (team order, the master looter's turn

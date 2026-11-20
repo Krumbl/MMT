@@ -97,6 +97,43 @@ local function Say(fmt, ...)
     if Cfg().dejunkChat ~= false then MMT.Print("Dejunk: " .. fmt, ...) end
 end
 
+-- automatic destroys are told to the FTL / notice leader (NOTE:DJ:<itemID>:<count>:<why>);
+-- the leader prints them together, a few seconds after the first, like loot lines
+local WHY_CODE = { ["free bag slot limit"] = "f", looted = "l", ["asked by the team"] = "t" }
+local WHY_TEXT = { f = "bags full", l = "always destroy", t = "asked by the team" }
+local function TellLeader(id, count, why)
+    local code = WHY_CODE[why]
+    if not code then return end   -- the button / key: you did it yourself
+    MMT.TellLeader(("NOTE:DJ:%d:%d:%s"):format(id, count or 1, code))
+end
+
+local leaderBatch = MMT.ChatBatch(3, function(list)
+    local order, byKey = {}, {}
+    for _, e in ipairs(list) do
+        if not byKey[e.key] then byKey[e.key] = {} order[#order + 1] = e.key end
+        table.insert(byKey[e.key], e)
+    end
+    local parts = {}
+    for _, key in ipairs(order) do
+        local items, whys = {}, {}
+        for _, e in ipairs(byKey[key]) do
+            local _, link = MMT.ItemInfo(e.id)
+            items[#items + 1] = tostring(link or ("item " .. e.id)) .. (e.count > 1 and ("x" .. e.count) or "")
+            whys[WHY_TEXT[e.why] or "?"] = true
+        end
+        local w = {}
+        for k in pairs(whys) do w[#w + 1] = k end
+        table.sort(w)
+        parts[#parts + 1] = ("%s: %s (%s)"):format(MMT.ShownName(key), table.concat(items, ", "), table.concat(w, ", "))
+    end
+    MMT.Print("Dejunk: destroyed - " .. table.concat(parts, "; "))
+end)
+M:Listen("TEAM_MESSAGE", function(key, sender, text, _, channel)
+    local id, count, why = text:match("^NOTE:DJ:(%d+):(%d+):(%a)$")
+    if not id or not MMT.AcceptNotice(channel) then return end
+    leaderBatch.Add({ key = key, id = tonumber(id), count = tonumber(count) or 1, why = why })
+end)
+
 -- destroys one bag item now (must run inside a hardware event)
 local function DestroyNow(item, why)
     if InCombatLockdown() or UnitIsDeadOrGhost("player") then stats.skippedCombat = stats.skippedCombat + 1 return false end
@@ -115,6 +152,7 @@ local function DestroyNow(item, why)
         stats.destroyed = stats.destroyed + 1
         stats.last = item.link
         Say("destroyed %s%s (%s).", tostring(info.hyperlink or item.link), (info.stackCount or 1) > 1 and ("x" .. info.stackCount) or "", why)
+        TellLeader(item.id, info.stackCount or 1, why)
     end
     M:Debug("dejunk destroy %s x%s (%s) -> %s", tostring(item.link), tostring(info.stackCount), why, tostring(ok))
     return ok

@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="MMT_DEJUNK" header="MMT_DEJUNK" category="BINDING_CATEGORY_MMT">
+        MMT_DejunkNow()
+    </Binding>
+</Bindings>

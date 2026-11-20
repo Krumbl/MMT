@@ -367,6 +367,21 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   tooltips", on by default). Other addons can add their own rules and options to
   that tab (MMT.RegisterLootSkip, see Module.lua). Only master loot is covered (every
   item with the threshold Poor); it adds no loot time.
+  "Dejunk" tab: destroying items. The game only lets addons destroy an item during a real
+  key press or click, one item per press, so MMT destroys during your next key presses or
+  clicks (moving, clicking in the world, ...) - without the game's confirmation popup.
+  "Destroy the least valued item, when free bag slot-limit is reached" (off by default,
+  also in the Loot tab under "Keep free bag slots"): at that many free slots the cheapest
+  item that may go is destroyed, one per press, until the bags are above the limit; works
+  for every character. "Never destroy above" (White): better items only go when an
+  "Always destroy" role lists them; quest items and items without a sell price never.
+  "Destroy the same item on the team" (on): when you destroy an item yourself, MMT asks
+  whether the team destroys it too (DJX); every member then destroys all its stacks during
+  its next key presses (broadcast your keys with ISBoxer and they go as you move).
+  "Destroy the cheapest item": button and key binding (Key Bindings > MMT), at once.
+  Never / Always destroy: pick roles (several each); their item rules (Roles > Items) say
+  which items count. "Always destroy" items go first, and "Right after looting" (on)
+  destroys them as soon as they land in the bags. Never in combat.
   Other addons can pick the receiver of an item first with `MMT.RegisterLootChooser`
   (see CreateModules.md); what they leave goes by the roles as above.
   "Auto-Round Robin quest items": quest items go to the team in turns (team order, the master looter's turn

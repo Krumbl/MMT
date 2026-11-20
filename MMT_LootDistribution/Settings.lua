@@ -8,6 +8,16 @@ local H = MMT.ConfigHelpers
 local COL_W, COL2_X, PAGE_W = H.COL_W, H.COL2_X, H.PAGE_W
 local StatusLine = H.StatusLine
 
+-- a checkbox whose label may take two lines
+local function LongCheck(col, parent, width, text, get, set, tip)
+    local cb = UI.Check(parent, width, text, get, set, tip)
+    cb:SetHeight(UI.ROW * 2 - 6)
+    cb.label:SetWordWrap(true)
+    cb.label:SetMaxLines(2)
+    col:Add(cb, UI.ROW * 2 - 2)
+    return cb
+end
+
 local function Opt(key)
     return function() return M.db[key] end,
            function(v) M.db[key] = v end
@@ -22,6 +32,7 @@ M.Page = function(_, page)
         { "loot", "Loot", "INV_Misc_Bag_10" },
         { "sparkles", "Sparkles", "INV_Misc_Herb_10" },
         { "never", "Never Loot", "INV_Misc_Bone_HumanSkull_01" },
+        { "dejunk", "Dejunk", "INV_Misc_Gear_01" },
     }, H.SYNC_RESERVE)
     local SparklesTab = mod.SparklesTab
     page = panels.loot
@@ -105,6 +116,9 @@ M.Page = function(_, page)
         "When a role wants the item but none of its members has room: leave it in the loot window, give it to the next team member with room (round robin, keeping the free slots), or to the master looter. Quest items are handled by their own round robin.")
     local gres, sres = Opt("reserve")
     masterOnly[#masterOnly + 1] = R:Slider("Keep free bag slots", 0, 20, 1, gres, sres)
+    local fullCheck = LongCheck(R, R.parent, TILE_W - 16, "Destroy the least valued item, when free bag slot-limit is reached", function() return M.db.dejunkFull end,
+        function(v) M.db.dejunkFull = v and true or false MMT.Refresh() end,
+        "When a character is down to the free bag slots above, its least valuable item is destroyed during its next key press or click (the game only allows destroying on a key press or click), one per press, until it is above the limit again. Works for every character, not only as master looter.\nWhat may go is set in the Dejunk tab (quality limit, Never / Always destroy roles); the same option is there too.")
     local gu, su = Opt("unassigned")
     masterOnly[#masterOnly + 1] = R:Cycle("No role wants it", {
         { value = "LEAVE", text = "Leave for manual" },
@@ -118,8 +132,7 @@ M.Page = function(_, page)
     masterOnly[#masterOnly + 1] = R:Check("Report in chat", grep, srep, "Prints the items given and the loot settings that were applied (only for you). Items are collected for 5 seconds and printed together, one line per role (\"Given [Item1], [Item2] to <Name> (Role)\"), per quest item (\"Quest Item: [Item] to <Name1>x2 and <Name2>x1\") and for items without a role. RR = round robin, Fill Up = by team order, ML prio = master looter first.")
     local gbop, sbop = Opt("bopRoles")
     masterOnly[#masterOnly + 1] = R:Check("Bind on Pickup on a role's item list", gbop, sbop,
-        "A Bind on Pickup item that a role lists by name (Roles > Items, e.g. Corrupted Soul Shard) goes to that role's members like other loot. Only exact items count: a quality, item group or class rule never takes a Bind on Pickup item. With no member of the role here with room, it is posted in group chat as usual.")
-    masterOnly[#masterOnly + 1] = R:Note("Other Bind on Pickup items are never given out or looted: they are posted in group chat, and the master looter assigns them by hand. Items without loaded item data are left alone, too.")
+        "A Bind on Pickup item that a role lists by name (Roles > Items, e.g. Corrupted Soul Shard) goes to that role's members like other loot. Only exact items count: a quality, item group or class rule never takes a Bind on Pickup item. With no member of the role here with room, it is posted in group chat as usual.\n\nOther Bind on Pickup items are never given out or looted: they are posted in group chat, and the master looter assigns them by hand. Items without loaded item data are left alone, too.")
     local hint = R:Note("")
 
     R:Header("Quest items")
@@ -142,10 +155,13 @@ M.Page = function(_, page)
 
     local sparklesRefresh = SparklesTab(panels.sparkles, PANEL_H)
     local neverRefresh = mod.NeverLootTab(panels.never, PANEL_H, root)
+    local dejunkRefresh = mod.DejunkTab(panels.dejunk, PANEL_H)
     page = root
     page.OnRefresh = function()
         sparklesRefresh()
         neverRefresh()
+        dejunkRefresh()
+        fullCheck.Refresh()
         local method, partyIndex = mod.GetMethod()
         local text = IsInGroup() and ("Current: " .. (mod.METHOD_TEXT[method] or tostring(method)))
             or "Not in a group."
@@ -275,6 +291,93 @@ function mod.NeverLootTab(panel, PANEL_H, root)
     end
 end
 
+-- Dejunk tab: destroying (left), Never / Always destroy roles (right)
+function mod.DejunkTab(panel, PANEL_H)
+    local Tile, TILE_W, X2 = H.Tile, H.TILE_W, H.TILE_W + H.TILE_GAP
+    local lt, L = Tile(panel, 0, 0, TILE_W, PANEL_H, "Destroying Items", "Interface\\Icons\\INV_Misc_Gear_01")
+    L:Note("The game only lets addons destroy an item during a real key press or click, one item per press. MMT destroys without the game's confirmation popup, during your next key presses or clicks (moving, clicking in the world, ...).")
+    local full = LongCheck(L, lt, TILE_W - 16, "Destroy the least valued item, when free bag slot-limit is reached", function() return M.db.dejunkFull end,
+        function(v) M.db.dejunkFull = v and true or false MMT.Refresh() end,
+        "Same option as in the Loot tab. At the free bag slots kept there (\"Keep free bag slots\"), the least valuable item that may go is destroyed during the next key press or click, one per press, until the bags are above the limit again.")
+    local limit = L:Note("")
+    local qualities = {}
+    for q = 0, 4 do qualities[#qualities + 1] = { value = q, text = MMT.QualityName(q) } end
+    local qual = L:Cycle("Never destroy above", qualities, function() return M.db.dejunkMaxQuality or 1 end,
+        function(v) M.db.dejunkMaxQuality = v end)
+    UI.Tooltip(qual, "Never destroy above", "Items of a better quality are never destroyed, unless an \"Always destroy\" role lists them. Quest items and items without a sell price are never destroyed either.")
+    local team = L:Check("Destroy the same item on the team", function() return M.db.dejunkTeam end,
+        function(v) M.db.dejunkTeam = v and true or false end,
+        "When you destroy an item yourself (drag it out of the bags), MMT asks whether the team should destroy it too. If yes, every team member destroys all its stacks of it during its next key presses or clicks (broadcast your keys with ISBoxer and they go as you move). A member only does so with this option on. \"Never destroy\" roles still protect an item.")
+    local chat = L:Check("Say so in chat", function() return M.db.dejunkChat ~= false end,
+        function(v) M.db.dejunkChat = v and true or false end, "Prints what was destroyed and why (only for you).")
+    L:Header("Destroy now")
+    L:Button("Destroy the cheapest item", function() mod.DejunkNow() end)
+    local keyRow = CreateFrame("Frame", nil, lt)
+    keyRow:SetSize(TILE_W - 16, UI.ROW)
+    local keyLabel = UI.Label(keyRow, "Key binding:")
+    keyLabel:SetPoint("LEFT", 0, 0)
+    local keyButton = UI.KeyBind(keyRow, 140, "MMT_DEJUNK")
+    keyButton:SetPoint("LEFT", keyLabel, "RIGHT", 8, 0)
+    UI.Tooltip(keyButton, "Destroy the cheapest item", "Key binding (also in the game's Key Bindings > MMT). Click, then press a key; right-click clears it. An item of an \"Always destroy\" role goes first.")
+    L:Add(keyRow, UI.ROW + 4)
+    local nextLine = L:Note("")
+
+    local rt, R = Tile(panel, X2, 0, TILE_W, PANEL_H, "Never / Always Destroy", "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01")
+    R:Note("Pick roles: their item rules (Roles > Items) say which items count. Several roles can be picked.")
+    local MAX, ROWS2 = 10, 5   -- two columns of role checks per list
+    local half = math.floor((TILE_W - 16) / 2)
+    local function RoleChecks(field)
+        local checks = {}
+        for r = 1, ROWS2 do
+            local row = CreateFrame("Frame", nil, rt)
+            row:SetSize(TILE_W - 16, UI.ROW)
+            for c = 1, 2 do
+                local cb
+                cb = UI.Check(row, half - 4, "", function() return cb.role and M.db[field][cb.role] and true or false end,
+                    function(v) if cb.role then M.db[field][cb.role] = v and true or nil end end)
+                cb:SetPoint("LEFT", (c - 1) * half, 0)
+                checks[#checks + 1] = cb
+            end
+            R:Add(row, UI.ROW)
+        end
+        local more = R:Note("")
+        return checks, more
+    end
+    R:Header("Never destroy")
+    local neverChecks, neverMore = RoleChecks("dejunkNever")
+    R:Header("Always destroy")
+    local alwaysChecks, alwaysMore = RoleChecks("dejunkAlways")
+    local looted = R:Check("Right after looting", function() return M.db.dejunkAlwaysLooted end,
+        function(v) M.db.dejunkAlwaysLooted = v and true or false end,
+        "Items of these roles are destroyed during the next key presses or clicks after they land in the bags. Off: only with the button / key or at the free bag slot limit, where they always go first.")
+    local noRoles = R:Note("")
+
+    local function Fill(checks, more, field)
+        local names = MMT.SortedRoleNames()
+        for i, cb in ipairs(checks) do
+            local name = names[i]
+            cb.role = name
+            cb:SetShown(name ~= nil)
+            if name then
+                if cb.label then cb.label:SetText(name) end
+                cb.Refresh()
+            end
+        end
+        more:SetText(#names > MAX and ("|cff999999+%d more roles (only the first %d can be picked here)|r"):format(#names - MAX, MAX) or "")
+        for role in pairs(M.db[field]) do if not MMT.db.roles[role] then M.db[field][role] = nil end end
+    end
+    return function()
+        full.Refresh() team.Refresh() chat.Refresh() looted.Refresh()
+        limit:SetText(("|cff999999Limit: %d free bag slot(s) (\"Keep free bag slots\", Loot tab).|r"):format(M.db.reserve or 0))
+        Fill(neverChecks, neverMore, "dejunkNever")
+        Fill(alwaysChecks, alwaysMore, "dejunkAlways")
+        noRoles:SetText(#MMT.SortedRoleNames() == 0 and "|cff999999No roles yet: make them in Roles.|r" or "")
+        local item, value = mod.DejunkCandidate()
+        nextLine:SetText(item and ("Next: %s  |cff999999(%s)|r"):format(tostring(item.link), mod.MoneyText and mod.MoneyText(value) or (GetCoinTextureString and GetCoinTextureString(value or 0)) or tostring(value))
+            or "|cff999999Nothing to destroy right now.|r")
+    end
+end
+
 -- Sparkles tab: what sparkles (left), how it looks (right)
 function mod.SparklesTab(panel, PANEL_H)
     local Tile, TILE_W, X2 = H.Tile, H.TILE_W, H.TILE_W + H.TILE_GAP
@@ -365,6 +468,7 @@ function M.Report(_, add)
     add("quest round robin=" .. tostring(M.db.questRR))
     if mod.QuestCacheReport then mod.QuestCacheReport(add) end
     if mod.StackCacheReport then mod.StackCacheReport(add) end
+    if mod.DejunkReport then mod.DejunkReport(add) end
     local never = {}
     for _, e in ipairs(MMT.db.exclusions or {}) do if e.loot then never[#never + 1] = tostring(e.itemID) end end
     local others = {}

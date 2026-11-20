@@ -89,12 +89,41 @@ function mod.CreateChart(parent, width, height)
         end
         return c.grid[i], c.yLabels[i]
     end
-    c.xFirst = UI.Label(c, "")
-    c.xFirst:SetPoint("BOTTOMLEFT", PAD_L, 3)
-    c.xFirst:SetTextColor(0.6, 0.6, 0.6)
-    c.xLast = UI.Label(c, "")
-    c.xLast:SetPoint("BOTTOMRIGHT", -PAD_R, 3)
-    c.xLast:SetTextColor(0.6, 0.6, 0.6)
+    -- day labels under the chart: the first, the last and every 5th day between
+    c.xLabels = {}
+    local function XLabel(i)
+        local l = c.xLabels[i]
+        if not l then
+            l = UI.Label(c, "", "GameFontNormalSmall")
+            l:SetTextColor(0.6, 0.6, 0.6)
+            c.xLabels[i] = l
+        end
+        return l
+    end
+    -- kept for code that still clears them
+    c.xFirst = { SetText = function() end, ClearAllPoints = function() end, SetPoint = function() end }
+    c.xLast = c.xFirst
+    function c:DrawDayLabels(points)
+        for _, l in ipairs(self.xLabels) do l:Hide() end
+        local n = points and #points or 0
+        if n == 0 then return end
+        local k = 0
+        for i = 1, n do
+            local edge = i == 1 or i == n
+            local every = (i - 1) % 5 == 0 and i > 1 and n - i >= 3   -- not too close to the last one
+            if edge or every then
+                k = k + 1
+                local l = XLabel(k)
+                l:SetText(tostring(points[i][1]):sub(6))
+                local x = self.padL + (n > 1 and (i - 1) / (n - 1) or 0.5) * self.plotW
+                l:ClearAllPoints()
+                if i == 1 then l:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", self.padL, 3)
+                elseif i == n then l:SetPoint("BOTTOMRIGHT", self, "BOTTOMLEFT", self.padL + self.plotW, 3)
+                else l:SetPoint("BOTTOM", self, "BOTTOMLEFT", x, 3) end
+                l:Show()
+            end
+        end
+    end
     c.empty = UI.Label(c, "No gold recorded yet.")
     c.empty:SetPoint("CENTER")
     c.empty:SetTextColor(0.5, 0.5, 0.5)
@@ -158,7 +187,7 @@ function mod.CreateChart(parent, width, height)
         self.empty:SetShown(lo == nil)
         if not lo then
             for i, g in ipairs(self.grid) do g:Hide(); self.yLabels[i]:Hide() end
-            self.xFirst:SetText(""); self.xLast:SetText("")
+            self:DrawDayLabels(nil)
             return
         end
         -- round steps; the left margin is as wide as the widest label needs
@@ -185,8 +214,7 @@ function mod.CreateChart(parent, width, height)
         end
         self.xFirst:ClearAllPoints()
         self.xFirst:SetPoint("BOTTOMLEFT", self.padL, 3)
-        self.xFirst:SetText(points[1][1]:sub(6))   -- the first day shown (the caller trims empty days)
-        self.xLast:SetText(points[#points][1]:sub(6))
+        self:DrawDayLabels(points)   -- the caller trims empty days at the start
         -- one line per pair of neighbouring days with data
         local k, prev = 0, nil
         for i, p in ipairs(points) do
@@ -232,20 +260,28 @@ function mod.CreateChart(parent, width, height)
         if most <= 0 then return end
         local n = #days
         local slot = self.plotW / math.max(1, n)
-        local w = math.max(1, math.floor(slot / 2 - 1))
+        -- one column per day: earned (green) at the bottom, spent (red) on top of it,
+        -- on a scale of their own (the lower third); kept inside the plot
+        local w = math.max(1, math.floor(slot * 0.55))
+        local most2 = 0
+        for _, d in ipairs(days) do most2 = math.max(most2, (d.e or 0) + (d.s or 0)) end
         local k = 0
         for i, d in ipairs(days) do
             local x = self.padL + (n > 1 and (i - 1) / (n - 1) or 0.5) * self.plotW
-            for side, colour in pairs({ e = { 0.35, 0.85, 0.35 }, s = { 0.9, 0.35, 0.35 } }) do
-                local v = d[side] or 0
+            x = math.max(self.padL + w / 2, math.min(self.padL + self.plotW - w / 2, x))
+            local base = 0
+            for _, part in ipairs({ { d.e or 0, 0.35, 0.85, 0.35 }, { d.s or 0, 0.9, 0.35, 0.35 } }) do
+                local v = part[1]
                 if v > 0 then
                     k = k + 1
                     local b = Bar(k)
-                    b:SetColorTexture(colour[1], colour[2], colour[3], 0.45)
-                    b:SetSize(w, math.max(1, v / most * self.plotH * 0.33))
+                    local h = math.max(1, v / most2 * self.plotH * 0.33)
+                    b:SetColorTexture(part[2], part[3], part[4], 0.5)
+                    b:SetSize(w, h)
                     b:ClearAllPoints()
-                    b:SetPoint("BOTTOM", self, "BOTTOMLEFT", side == "e" and (x - w / 2) or (x + w / 2), PAD_B)
+                    b:SetPoint("BOTTOM", self, "BOTTOMLEFT", x, PAD_B + base)
                     b:Show()
+                    base = base + h
                 end
             end
         end

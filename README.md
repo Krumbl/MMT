@@ -324,10 +324,10 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     with totals; scroll with the mouse wheel. Kept in memory only: "Reset session", a login
     or a reload start it empty. In instances (hidden names) the level comes from the dead
     NPC you have targeted, and coins of a corpse that can't be told go to the last named
-    kill. With Master Looter the team shares its rows (SKD, out of combat, only the rows
-    that changed); "Me / Team" switches the view: kills as the character that counted
-    most, XP and money added up, XP / Kill per character. With group loot every character
-    keeps its own.
+    kill. With Master Looter only the master looter loots the coins: it sends what it
+    looted per NPC (SKM, out of combat, only the rows whose coins changed), and the others
+    fill in their own rows' money with it. Kills, XP and levels stay each character's own;
+    with group loot nothing is sent.
     With the damage meter (HUF's, or EllesmereUI's when that one is used): "Meter look" takes
     the meter's title bar, background, edge and font; "Dock" puts it above, below, left or
     right of a meter window ("Window"), where it moves, resizes and fades with it; "Fill the

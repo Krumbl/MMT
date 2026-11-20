@@ -15,8 +15,9 @@ local M = mod.M
 local A = { 0.31, 0.70, 1.00 }
 
 local data = {}         -- [zone] = { [npc] = { k, xp, money, lvlSum, lvlN } }
-local team = {}         -- [member key] = { id = session id, rows = { [zone .. "\t" .. npc] = { zone, npc, k, xp, money, lvlSum, lvlN } } }
-local dirty = {}        -- [zone .. "\t" .. npc] = true: changed since the last sync
+local mlMoney = {}      -- [zone .. "\t" .. npc] = coins the master looter looted from it (sent by it)
+local mlFrom            -- { key, id } of the master looter session those came from
+local dirty = {}        -- [zone .. "\t" .. npc] = true: its coins changed since the last send
 local function NewId() return ("%x"):format(math.random(0, 0x7fffffff)) end
 local sessionId = NewId()
 local levelOf = {}      -- [npc name] = level seen last
@@ -41,7 +42,6 @@ local function Zone()
 end
 
 local function Entry(zone, name)
-    dirty[zone .. "\t" .. name] = true
     data[zone] = data[zone] or {}
     local e = data[zone][name]
     if not e then
@@ -96,7 +96,7 @@ function mod.SessionRename(old, new, guid)
     local from = z and z[old]
     if from and from.k > 0 then
         from.k = from.k - 1
-        dirty[zone .. "\t" .. old] = true
+        if from.money > 0 then dirty[zone .. "\t" .. old] = true end
         if from.k <= 0 and from.xp == 0 and from.money == 0 then z[old] = nil end
     end
     mod.SessionKill(new, guid)
@@ -161,6 +161,7 @@ function mod.SessionLootMoney(copper)
         given = given + part
         local e = Entry(s.zone, s.name)
         e.money = e.money + part
+        dirty[s.zone .. "\t" .. s.name] = true
     end
     if mod.RedrawSessionKills then mod.RedrawSessionKills() end
 end
@@ -170,40 +171,24 @@ function mod.ResetSessionKills()
     wipe(data)
     wipe(guidName)
     lastKill, lastNamed, lootSources = nil, nil, nil
-    wipe(team)
+    wipe(mlMoney)
+    mlFrom = nil
     sessionId = NewId()
     dirty = {}
     if mod.RedrawSessionKills then mod.RedrawSessionKills() end
 end
 
--- { { zone, name, avgLvl|nil, k, xp, money, kSum } } sorted: zone, then kills.
--- Team view: kills = the most any one character counted (they fought the same
--- NPCs), XP and money added up, XP / Kill per character (all XP / all kills).
-function mod.SessionKillRows(teamView)
-    local rows, byKey = {}, {}
-    local function AddRow(zone, name, k, xp, money, lvlSum, lvlN)
-        local key = zone .. "\t" .. name
-        local r = byKey[key]
-        if not r then
-            r = { zone, name, nil, 0, 0, 0, 0, lvlSum = 0, lvlN = 0 }
-            byKey[key] = r
-            rows[#rows + 1] = r
-        end
-        r[4] = math.max(r[4], k)
-        r[5] = r[5] + xp
-        r[6] = r[6] + money
-        r[7] = r[7] + k
-        r.lvlSum, r.lvlN = r.lvlSum + lvlSum, r.lvlN + lvlN
-    end
+-- { { zone, name, avgLvl|nil, k, xp, money } } sorted: zone, then kills. The
+-- money is what this character looted, or what the master looter sent for the
+-- NPC when that is more.
+function mod.SessionKillRows()
+    local rows = {}
     for zone, npcs in pairs(data) do
-        for name, e in pairs(npcs) do AddRow(zone, name, e.k, e.xp, e.money, e.lvlSum, e.lvlN) end
-    end
-    if teamView then
-        for _, t in pairs(team) do
-            for _, e in pairs(t.rows) do AddRow(e[1], e[2], e[3], e[4], e[5], e[6], e[7]) end
+        for name, e in pairs(npcs) do
+            local money = math.max(e.money, mlMoney[zone .. "\t" .. name] or 0)
+            rows[#rows + 1] = { zone, name, e.lvlN > 0 and e.lvlSum / e.lvlN or nil, e.k, e.xp, money }
         end
     end
-    for _, r in ipairs(rows) do r[3] = r.lvlN > 0 and r.lvlSum / r.lvlN or nil end
     table.sort(rows, function(a, b)
         if a[1] ~= b[1] then return a[1] < b[1] end
         if a[4] ~= b[4] then return a[4] > b[4] end
@@ -248,38 +233,54 @@ local function Cell(parent, col, y)
 end
 
 ---------------------------------------------------------------------------
--- Team sync (only with Master Looter: with group loot every character keeps its
--- own): the rows that changed, out of combat, a few seconds after the change.
---   SKD:<packed { id = session id, rows = { { zone, npc, k, xp, money, lvlSum, lvlN } } }>
+-- Money from the master looter: with Master Looter only the master looter
+-- loots the coins, so it sends what it looted per NPC (rows whose coins
+-- changed, out of combat, a few seconds later). The others fill in their own
+-- rows' money with it. Kills, XP and levels stay each character's own.
+--   SKM:<packed { id = session id, rows = { { zone, npc, copper } } }>
 ---------------------------------------------------------------------------
-local function MasterLoot()
-    if not IsInGroup() then return false end
-    local method
+local function LootMethod()
     if C_PartyInfo and C_PartyInfo.GetLootMethod then
-        local ok, m = pcall(C_PartyInfo.GetLootMethod)
-        method = ok and Plain(m)
-        if type(method) == "number" then return Enum and Enum.LootMethod and method == Enum.LootMethod.Masterlooter end
+        local ok, m, party, raid = pcall(C_PartyInfo.GetLootMethod)
+        if ok then
+            m = Plain(m)
+            if type(m) == "number" then
+                m = (Enum and Enum.LootMethod and m == Enum.LootMethod.Masterlooter) and "master" or tostring(m)
+            end
+            return m, Plain(party), Plain(raid)
+        end
     end
-    if method == nil and type(GetLootMethod) == "function" then method = Safe(GetLootMethod) end
-    return method == "master"
+    if type(GetLootMethod) == "function" then
+        local ok, m, party, raid = pcall(GetLootMethod)
+        if ok then return Plain(m), Plain(party), Plain(raid) end
+    end
 end
-mod.SessionMasterLoot = MasterLoot
+local function MasterLoot() return IsInGroup() and LootMethod() == "master" end
+-- this character is the master looter
+local function IAmMasterLooter()
+    if not MasterLoot() then return false end
+    local _, party, raid = LootMethod()
+    if IsInRaid() then return raid ~= nil and Safe(UnitIsUnit, "raid" .. raid, "player") or false end
+    return party == 0
+end
+mod.SessionMasterLoot, mod.SessionIAmMasterLooter = MasterLoot, IAmMasterLooter
 
 local syncSoon = false
 local syncStats = { sent = 0, received = 0 }
 local function Sync()
     syncSoon = false
-    if not next(dirty) or not MasterLoot() then return end
+    if not next(dirty) then return end
+    if not IAmMasterLooter() then dirty = {} return end   -- only the master looter's coins are shared
     if InCombatLockdown() then return end   -- PLAYER_REGEN_ENABLED tries again
     local rows = {}
     for key in pairs(dirty) do
         local zone, name = key:match("^(.-)\t(.*)$")
         local e = zone and data[zone] and data[zone][name]
-        rows[#rows + 1] = { zone, name, e and e.k or 0, e and e.xp or 0, e and e.money or 0, e and e.lvlSum or 0, e and e.lvlN or 0 }
+        if zone then rows[#rows + 1] = { zone, name, e and e.money or 0 } end
     end
     dirty = {}
     syncStats.sent = syncStats.sent + 1
-    MMT.SendLong("SKD:" .. MMT.Pack(MMT.Serialize({ id = sessionId, rows = rows })), nil, "BULK")
+    MMT.SendLong("SKM:" .. MMT.Pack(MMT.Serialize({ id = sessionId, rows = rows })), nil, "BULK")
 end
 local function SyncSoon()
     if syncSoon then return end
@@ -289,18 +290,20 @@ end
 M:On("PLAYER_REGEN_ENABLED", function() if next(dirty) then SyncSoon() end end)
 
 M:Listen("TEAM_MESSAGE", function(key, sender, text)
-    local body = text:match("^SKD:(.*)$")
-    if not body or MMT.IsSelf(key) then return end
+    local body = text:match("^SKM:(.*)$")
+    if not body or MMT.IsSelf(key) or not MasterLoot() then return end
     local plain = MMT.Unpack(body)
     local t = plain and MMT.Deserialize(plain)
     if type(t) ~= "table" or type(t.rows) ~= "table" then return end
-    local entry = team[key]
-    if not entry or entry.id ~= t.id then entry = { id = t.id, rows = {} } team[key] = entry end   -- a new session there
+    -- another master looter, or a new session there: start over
+    if not mlFrom or mlFrom.key ~= key or mlFrom.id ~= t.id then
+        wipe(mlMoney)
+        mlFrom = { key = key, id = t.id }
+    end
     for _, r in ipairs(t.rows) do
         if type(r) == "table" and type(r[1]) == "string" and type(r[2]) == "string" then
-            local k = r[1] .. "\t" .. r[2]
-            if (tonumber(r[3]) or 0) <= 0 and (tonumber(r[4]) or 0) <= 0 and (tonumber(r[5]) or 0) <= 0 then entry.rows[k] = nil
-            else entry.rows[k] = { r[1], r[2], tonumber(r[3]) or 0, tonumber(r[4]) or 0, tonumber(r[5]) or 0, tonumber(r[6]) or 0, tonumber(r[7]) or 0 } end
+            local n = tonumber(r[3]) or 0
+            mlMoney[r[1] .. "\t" .. r[2]] = n > 0 and n or nil
         end
     end
     syncStats.received = syncStats.received + 1
@@ -309,10 +312,10 @@ end)
 
 function mod.SessionKillsReport(add)
     local n = 0
-    for _, t in pairs(team) do for _ in pairs(t.rows) do n = n + 1 end end
-    local own = #mod.SessionKillRows(false)
-    add(("  session kill-details: rows=%d team rows=%d masterLoot=%s sent=%d received=%d session=%s"):format(
-        own, n, tostring(MasterLoot()), syncStats.sent, syncStats.received, sessionId))
+    for _ in pairs(mlMoney) do n = n + 1 end
+    add(("  session kill-details: rows=%d masterLoot=%s iAmML=%s sent=%d received=%d (rows with the master looter's coins: %d, from %s) session=%s"):format(
+        #mod.SessionKillRows(), tostring(MasterLoot()), tostring(IAmMasterLooter()), syncStats.sent, syncStats.received, n,
+        mlFrom and MMT.Repr(mlFrom.key) or "-", sessionId))
 end
 
 local function Build()
@@ -342,12 +345,6 @@ local function Build()
     title:SetTextColor(A[1], A[2], A[3])
     local x = UI.Button(win, 20, "x", function() win:Hide() end)
     x:SetPoint("TOPRIGHT", -6, -5)
-    win.teamBtn = UI.Button(win, 60, "Me", function()
-        M.db.sessionKillsTeam = not M.db.sessionKillsTeam
-        mod.RedrawSessionKills()
-    end)
-    win.teamBtn:SetPoint("RIGHT", x, "LEFT", -6, 0)
-    UI.Tooltip(win.teamBtn, "Me / Team", "With Master Looter the team's rows are shared (out of combat). Team: kills as the character that counted most, XP and money of everybody added up, XP / Kill per character.")
     win.sub = UI.Label(win, "", "GameFontNormalSmall")
     win.sub:SetPoint("LEFT", title, "RIGHT", 10, 0)
     win.sub:SetTextColor(0.6, 0.6, 0.6)
@@ -391,10 +388,7 @@ end
 function mod.RedrawSessionKills()
     if next(dirty) then SyncSoon() end
     if not (win and win:IsShown()) then return end
-    local teamView = M.db.sessionKillsTeam and MasterLoot() and next(team) ~= nil
-    win.teamBtn:SetShown(MasterLoot() and next(team) ~= nil)
-    win.teamBtn.label:SetText(teamView and "Team" or "Me")
-    local rows = mod.SessionKillRows(teamView)
+    local rows = mod.SessionKillRows()
     win.offset = math.max(0, math.min(win.offset, #rows - ROWS))
     local t = { k = 0, xp = 0, money = 0 }
     for _, r in ipairs(rows) do t.k = t.k + r[4]; t.xp = t.xp + r[5]; t.money = t.money + r[6] end

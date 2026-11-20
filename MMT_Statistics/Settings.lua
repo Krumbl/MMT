@@ -151,6 +151,10 @@ local function Grid(parent, cols, visible, width)
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        -- right-click: the row's own action (e.g. remove an instance visit)
+        row:SetScript("OnMouseUp", function(self, button)
+            if button == "RightButton" and self.data and self.data.onRightClick then self.data.onRightClick() end
+        end)
         return row
     end, function(row, d)
         row.data = d
@@ -1053,6 +1057,19 @@ M.Page = function(_, page)
                         end
                         t:AddLine(("This character entered this instance %d %s (%d in last 60 minutes)."):format(
                             all, all == 1 and "time" or "times", hour), 0.7, 0.7, 0.7, true)
+                        t:AddLine(" ")
+                        t:AddLine("Right-click: remove this visit", 0.5, 0.5, 0.5)
+                    end,
+                    onRightClick = function()
+                        if r.leave == nil and e.key == me then
+                            MMT.Print("Statistics: leave the instance first, then remove this visit.")
+                            return
+                        end
+                        GameTooltip:Hide()
+                        MMT.UI.Confirm(("Remove this visit of %s (%s)?\nIt still counts for the hourly instance limit."):format(
+                            r.n or "the instance", date("%Y-%m-%d %H:%M", r.enter or 0)), "Remove", function()
+                            if mod.RemoveRun(e.key, r) then mod.Redraw() end
+                        end, "Cancel")
                     end,
                 }
             end

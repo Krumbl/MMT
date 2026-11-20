@@ -88,6 +88,26 @@ local function ReadZone()
 end
 
 local run   -- the instance run this character is in now
+
+-- remove a visit from the instance list (Statistics > Zones, right-click). Not the
+-- one this character is in now. Its entry time is kept for an hour, so the
+-- hourly instance limit still counts it.
+function mod.RemoveRun(key, r)
+    local c = mod.Store().chars[key]
+    if not c or not c.runs or r == run then return false end
+    for i = #c.runs, 1, -1 do
+        if c.runs[i] == r then
+            table.remove(c.runs, i)
+            local keep = {}
+            for _, t in ipairs(c.removedRuns or {}) do if t > time() - 3600 then keep[#keep + 1] = t end end
+            if r.enter and r.enter > time() - 3600 then keep[#keep + 1] = r.enter end
+            c.removedRuns = keep
+            M:Debug("instance visit removed: %s %s", tostring(r.n), date("%Y-%m-%d %H:%M", r.enter or 0))
+            return true
+        end
+    end
+    return false
+end
 local lastLand   -- the last zone outside instances (where the entrance is)
 local reloading         -- PLAYER_ENTERING_WORLD said: UI reload
 local sessionZoneRead   -- the zone was read once since this UI loaded
@@ -178,6 +198,10 @@ function mod.InstancesLastHour()
     for _, c in pairs(mod.Store().chars) do
         for _, r in ipairs(c.runs or {}) do
             if (r.enter or 0) > since then list[#list + 1] = r.enter end
+        end
+        -- visits removed from the list still count for the limit
+        for _, t in ipairs(c.removedRuns or {}) do
+            if t > since then list[#list + 1] = t end
         end
     end
     table.sort(list)

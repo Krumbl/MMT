@@ -297,7 +297,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     last 60 minutes). The instance ID is hidden from addons on WoW: Forever, so every
     entry is a new row, numbered #1, #2; re-entering an instance left within 3 hours
     without a reset asks whether it is the same ("Same instance" merges the rows); after
-    a /reload or a relog within 2 minutes inside, it is the same without asking. Chat
+    a /reload or a relog within 2 minutes inside, it is the same without asking.
+    Right-click a visit to remove it (e.g. entered and left at once; not the one you are
+    in): it still counts for the hourly instance limit. Chat
     notes on entering: new or the same instance, and how many instances the account
     entered in the last hour (WoW: Forever allows 10).
   - Professions (this account only, not shared): five tiles with the current skill of

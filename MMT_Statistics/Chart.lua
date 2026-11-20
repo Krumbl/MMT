@@ -185,9 +185,7 @@ function mod.CreateChart(parent, width, height)
         end
         self.xFirst:ClearAllPoints()
         self.xFirst:SetPoint("BOTTOMLEFT", self.padL, 3)
-        local first
-        for i, p in ipairs(points) do if p[2] then first = first or i end end
-        self.xFirst:SetText(points[first][1]:sub(6))
+        self.xFirst:SetText(points[1][1]:sub(6))   -- the first day shown (the caller trims empty days)
         self.xLast:SetText(points[#points][1]:sub(6))
         -- one line per pair of neighbouring days with data
         local k, prev = 0, nil

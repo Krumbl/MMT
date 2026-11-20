@@ -338,7 +338,7 @@ M.Page = function(_, page)
     gc:Header("Gold per account")
     local goldTable = Table(g, { "Account", "Team Characters", "Other Characters", "Combined" })
     gc:Add(goldTable, ROW_H * (ROWS + 1) + 8)
-    gc:Header("Gold, earned and spent, last 60 days")
+    gc:Header("Gold, earned and spent (up to 60 days)")
     local scope = ScopeDropdown(g)
     gc:Add(scope, UI.ROW + 4)
     local flowLine = UI.Label(g, "")
@@ -1334,10 +1334,25 @@ M.Page = function(_, page)
                 goldTable:Show_(AccountRows("g", mod.Money))
                 scope.Refresh()
                 local f = mod.FlowSummary(M.db.chartScope)
-                chart:SetData(mod.GoldSeries(M.db.chartScope), mod.Money)
-                if chart.SetFlows then chart:SetFlows(f.days, mod.Money) end
-                flowLine:SetText(("|cff66dd66Earned %s|r   |cffee6666Spent %s|r   Net %s   |cff888888(last 60 days)|r"):format(
-                    mod.Money(f.total.e), mod.Money(f.total.s), (f.total.e >= f.total.s and "" or "-") .. mod.Money(math.abs(f.total.e - f.total.s))))
+                local series = mod.GoldSeries(M.db.chartScope)
+                -- the x axis starts at the first day with data (gold, earned or spent), at
+                -- least two days wide, instead of always 60 days
+                local first = #series
+                for i, p in ipairs(series) do
+                    local d = f.days[i]
+                    if p[2] or (d and ((d.e or 0) > 0 or (d.s or 0) > 0)) then first = i break end
+                end
+                first = math.max(1, math.min(first, #series - 1))
+                local shownSeries, shownDays = {}, {}
+                for i = first, #series do
+                    shownSeries[#shownSeries + 1] = series[i]
+                    shownDays[#shownDays + 1] = f.days[i]
+                end
+                chart:SetData(shownSeries, mod.Money)
+                if chart.SetFlows then chart:SetFlows(shownDays, mod.Money) end
+                local span = first > 1 and ("since " .. tostring(series[first][1])) or "last 60 days"
+                flowLine:SetText(("|cff66dd66Earned %s|r   |cffee6666Spent %s|r   Net %s   |cff888888(%s)|r"):format(
+                    mod.Money(f.total.e), mod.Money(f.total.s), (f.total.e >= f.total.s and "" or "-") .. mod.Money(math.abs(f.total.e - f.total.s)), span))
             else
                 DrawFlowView(goldSub)
             end

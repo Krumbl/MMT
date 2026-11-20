@@ -238,7 +238,7 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
       "Team Characters", "Other Characters" (the account's characters outside the team) and
       "Combined"; the row tooltip lists the account's characters. Every character records
       its gold after login and on every change: one record per day, kept for 60 days,
-      saved per account. A chart of the combined gold over the last 60 days for "Current
+      saved per account. A chart of the combined gold (from the first day with data, up to 60 days) for "Current
       team", "Current account", "Account of X" or "All accounts" (round whole-gold steps,
       hover a day), with green / red bars for the gold earned and spent each day, and the
       totals earned, spent and net above it.

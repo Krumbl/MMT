@@ -19,7 +19,10 @@
 -- its name) within 10 minutes walks through the same steps; a member that has
 -- that NPC's window open already when the recording arrives starts at once.
 -- Steps that don't fit that character (a quest it already has, a dialog line
--- it doesn't see) are skipped. Quest reward: the same choice as recorded
+-- it doesn't see) are skipped. The whole talk follows the recording: a page
+-- without a recorded step stays yours (MMT's automation stays out until the
+-- talk is over); each recording replays once per character. A decline is
+-- recorded from the window: a quest offered and left without Accept. Quest reward: the same choice as recorded
 -- (option "Quest reward": same / leave to me); a quest with one reward or none
 -- is always turned in. Lines that ask for a confirmation (cost gold) stay
 -- yours. Hold Shift (with "Hold Shift to skip automation") to keep a window
@@ -159,13 +162,31 @@ local function WindowOpened()
     if not rec and GetTime() < armedUntil then StartRecording() end
 end
 
+-- a quest offered (detail page) and the window left without Accept: a
+-- decline (the Decline button, Escape or the close button)
+local offered    -- { q, title } of the detail page while recording
+local function OfferLeft()
+    if not (rec and offered) then return end
+    local last = rec.steps[#rec.steps]
+    if not (last and last.k == "decline" and last.q == offered.q) then
+        Add({ k = "decline", q = offered.q, title = offered.title })
+    end
+    offered = nil
+end
+local function DetailShown()
+    OfferLeft()   -- another offer replaced the last one
+    if rec then offered = { q = Plain(GetQuestID()), title = Plain(GetTitleText and GetTitleText()) } end
+end
+
 -- an NPC window closed: the talk is over when none opens again soon
 local function WindowClosed()
+    OfferLeft()
     C_Timer.After(END_GRACE, function()
         if NPCWindowOpen() then return end
         if rec then ns.NPCReplayFinish() end
         if play then
             ns.Debug("NPC REPLAY talk over at step %d of %d", play.pos, #play.steps)
+            recs[play.key] = nil   -- replayed once; the next talk is MMT's automation again
             play = nil
         end
     end)
@@ -226,13 +247,15 @@ local function Hooks()
     end
     if AcceptQuest then
         hooksecurefunc("AcceptQuest", function()
+            offered = nil
             if rec then Add({ k = "accept", q = Plain(GetQuestID()) }) end
         end)
     end
+    if AcknowledgeAutoAcceptQuest then
+        hooksecurefunc("AcknowledgeAutoAcceptQuest", function() offered = nil end)
+    end
     if DeclineQuest then
-        hooksecurefunc("DeclineQuest", function()
-            if rec then Add({ k = "decline", q = Plain(GetQuestID()) }) end
-        end)
+        hooksecurefunc("DeclineQuest", function() OfferLeft() end)
     end
     if CompleteQuest then
         hooksecurefunc("CompleteQuest", function()
@@ -347,7 +370,10 @@ local function Replay(page)
         ns.Debug("NPC REPLAY step %d/%d skipped on %s: %s", j, #play.steps, page, step.k)
         play.pos = j + 1
     end
-    return false
+    -- nothing recorded for this page: it stays yours (the whole talk follows
+    -- the recording, MMT's automation stays out of it)
+    ns.Debug("NPC REPLAY %s page: no recorded step, left to you", page)
+    return true
 end
 
 -- a received talk with this NPC still has steps: the Quest Tracker's quest
@@ -358,8 +384,7 @@ function ns.NPCReplayHas()
     local key = CurrentKey()
     local r = key and recs[key]
     if not r or GetTime() - r.t > KEEP_FOR then return false end
-    if play and play.key == key then return play.pos <= #play.steps end
-    return true
+    return true   -- the whole talk follows the recording
 end
 
 -- gossip: before MMT's own handlers (quests, vendor, dialogs); a page without
@@ -398,11 +423,12 @@ end)
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
-ns.On("GOSSIP_SHOW", WindowOpened)   -- (replay: the gossip handler above)
-ns.On("QUEST_GREETING", function() WindowOpened() Replay("GREETING") end)
-ns.On("QUEST_DETAIL", function() WindowOpened() Replay("DETAIL") end)
-ns.On("QUEST_PROGRESS", function() WindowOpened() Replay("PROGRESS") end)
-ns.On("QUEST_COMPLETE", function() WindowOpened() Replay("COMPLETE") end)
+ns.On("GOSSIP_SHOW", function() OfferLeft() WindowOpened() end)   -- (replay: the gossip handler above)
+ns.On("QUEST_GREETING", function() OfferLeft() WindowOpened() Replay("GREETING") end)
+ns.On("QUEST_DETAIL", function() WindowOpened() DetailShown() Replay("DETAIL") end)
+ns.On("QUEST_PROGRESS", function() OfferLeft() WindowOpened() Replay("PROGRESS") end)
+ns.On("QUEST_COMPLETE", function() OfferLeft() WindowOpened() Replay("COMPLETE") end)
+ns.On("QUEST_ACCEPTED", function() offered = nil end)
 ns.On("GOSSIP_CLOSED", WindowClosed)
 ns.On("QUEST_FINISHED", WindowClosed)
 

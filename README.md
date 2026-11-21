@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.25: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.26: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -538,8 +538,10 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     10 minutes walks through them, or starts at once when that NPC's window is open
     already. Steps that don't fit (a quest it has already, a line it doesn't see) are
     skipped; quest reward: same choice (by position) or "Leave to me"; quests that cost
-    gold and lines asking for a confirmation stay manual. While a replay has steps
-    left, the Quest Tracker's accept / turn-in leaves that NPC's quest pages to it.
+    gold and lines asking for a confirmation stay manual. The replayed talk follows the
+    recording only: pages without a recorded step (a follow-up quest you didn't take)
+    stay yours, MMT's automation stays out of it. A decline is recorded from the window
+    (offered quest closed without Accept). Each recording replays once per character.
   - "Take flight paths with the team": when a team member picks a destination at a
     flight master, every team member talking to a flight master too (flight map open, or
     opened within 5 seconds) flies to the same destination (as in EMA). "Tell the

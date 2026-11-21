@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.24: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.25: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -532,7 +532,7 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     `/mmt record`, then talk to the NPC within 15 seconds (adjustable): MMT's gossip and
     quest automation pauses from the press until the talk is over, so every page is
     yours. Or click "Rec" on the gossip / quest window to record from that page on
-    ("Stop" ends it). Recorded: dialog lines, quests picked, Accept, Complete and the
+    ("Stop" ends it). Recorded: dialog lines, quests picked, Accept, Decline, Complete and the
     quest reward. The talk ends when no NPC window was open for 1.5 s; the steps go to
     the team (NPCR). A team member that talks to the same NPC (NPC ID, else name) within
     10 minutes walks through them, or starts at once when that NPC's window is open

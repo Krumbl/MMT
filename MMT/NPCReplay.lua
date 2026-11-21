@@ -10,8 +10,8 @@
 --     off from the press until the talk is over, so every page is yours.
 --   * Pressed on an open NPC window it records from that page on.
 --   * Recorded: dialog lines (C_GossipInfo.SelectOption / SelectOptionByIndex),
---     quests picked in the gossip or quest greeting window, Accept, Complete
---     and the quest reward you took (GetQuestReward).
+--     quests picked in the gossip or quest greeting window, Accept, Decline,
+--     Complete and the quest reward you took (GetQuestReward).
 --   * The talk is over when no NPC window was open for 1.5 s (or "Stop" on the
 --     button, or after 2 minutes). The steps then go to the team ("NPCR:").
 --
@@ -229,6 +229,11 @@ local function Hooks()
             if rec then Add({ k = "accept", q = Plain(GetQuestID()) }) end
         end)
     end
+    if DeclineQuest then
+        hooksecurefunc("DeclineQuest", function()
+            if rec then Add({ k = "decline", q = Plain(GetQuestID()) }) end
+        end)
+    end
     if CompleteQuest then
         hooksecurefunc("CompleteQuest", function()
             if rec then Add({ k = "complete", q = Plain(GetQuestID()) }) end
@@ -245,7 +250,7 @@ end
 -- Replay
 ---------------------------------------------------------------------------
 -- the window each step belongs to
-local PAGE = { opt = "GOSSIP", avail = "PICK", active = "PICK", accept = "DETAIL", complete = "PROGRESS", reward = "COMPLETE" }
+local PAGE = { opt = "GOSSIP", avail = "PICK", active = "PICK", accept = "DETAIL", decline = "DETAIL", complete = "PROGRESS", reward = "COMPLETE" }
 
 -- does the step fit the page; if so, do it (returns true when done)
 local function Try(step, page)
@@ -284,7 +289,7 @@ local function Try(step, page)
     local here = Plain(GetQuestID())
     if step.q and here and step.q ~= here then return false end
     if page == "DETAIL" then
-        AcceptQuest()
+        if step.k == "decline" then DeclineQuest() else AcceptQuest() end
         return true
     elseif page == "PROGRESS" then
         if not IsQuestCompletable() then return false end

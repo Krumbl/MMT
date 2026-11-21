@@ -1492,7 +1492,7 @@ function ns.ToggleNPCReplayWindow(window)
         close:SetPoint("TOPRIGHT", -8, -8)
 
         local C = UI.Column(f, 16, -34, COL_W)
-        C:Note("Record a talk with an NPC on one character (dialog lines, quests picked, Accept, Complete, the quest reward) and the team replays it when they talk to the same NPC within 10 minutes.")
+        C:Note("Record a talk with an NPC on one character (dialog lines, quests picked, Accept, Decline, Complete, the quest reward) and the team replays it when they talk to the same NPC within 10 minutes.")
         C:Space(4)
         local gen, sen = Opt("npcReplay", "enabled")
         C:Check("Enable NPC Replay", gen, function(v) sen(v) ns.Refresh() end,

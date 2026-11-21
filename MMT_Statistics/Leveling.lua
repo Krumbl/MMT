@@ -187,9 +187,9 @@ local function Why(reason, ...)
     M:Debug("instance copy: " .. reason, ...)
 end
 ---------------------------------------------------------------------------
--- The hourly instance limit (10 per hour on WoW: Forever, every instance, the whole account)
+-- The hourly instance limit (5 per hour on WoW: Forever since November 2026, was 10, every instance, the whole account)
 ---------------------------------------------------------------------------
-mod.INSTANCES_PER_HOUR = 10   -- WoW: Forever (retail: 5)
+mod.INSTANCES_PER_HOUR = 5    -- WoW: Forever (was 10 until November 2026)
 
 -- first entries of instance copies within the last hour, all characters of
 -- this account, oldest first

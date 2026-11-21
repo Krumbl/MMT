@@ -1190,7 +1190,7 @@ M.Page = function(_, page)
         "Entering an instance you left within the last 3 hours (no reset since) asks whether it is the same instance as before; \"Same instance\" adds the visit to the earlier row. Off: every entry is a new row. (The game hides the instance ID from addons.)")
     SL:Check("Chat notes about instances", function() return M.db.instanceNotes ~= false end,
         function(v) M.db.instanceNotes = v end,
-        "On entering an instance: new or the same one, its visit number, and how many instances this account entered in the last hour (the game allows 10 per hour).")
+        "On entering an instance: new or the same one, its visit number, and how many instances this account entered in the last hour (the game allows 5 per hour).")
     SL:Check("Track quests", function() return M.db.trackQuests end, function(v) M.db.trackQuests = v end,
         "Records the quests each character accepts, completes (with its level, the experience and the money of the reward) and abandons. For the export (Quests). Not sent to the team.")
     SL:Check("Share with the team", function() return M.db.share end, function(v) M.db.share = v; if v then mod.SendNow() end end,

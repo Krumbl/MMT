@@ -3,7 +3,8 @@
 --
 --   * ns.ReplaceNames(text, forDebug): used for debug logs and reports when
 --     "Keep full names in debug logs" is off.
---   * "Hide names outside MMT too": chat (every chat window), unit frames
+--   * "Hide names outside MMT too": chat (every chat window), other addons'
+--     alert lines (SmartBuff's "X needs Mark of the Wild"), unit frames
 --     (player, target, focus, target of target, party, raid), nameplates,
 --     unit tooltips, lines other addons add to any tooltip (Syndicator's
 --     character counts on item tooltips, ...) and any text other addons show
@@ -415,9 +416,13 @@ local function ReapplyChat()
     end
 end
 
+-- other addons' alert frames (message frames, written with AddMessage like chat)
+local ALERT_FRAMES = { "SmartBuffSplashFrame" }
+
 local function WrapAllChatFrames()
     for i = 1, (NUM_CHAT_WINDOWS or 10) do WrapChatFrame(_G["ChatFrame" .. i]) end
     for _, name in ipairs(CHAT_FRAMES or {}) do WrapChatFrame(_G[name]) end
+    for _, name in ipairs(ALERT_FRAMES) do WrapChatFrame(_G[name]) end
 end
 
 ---------------------------------------------------------------------------
@@ -998,3 +1003,4 @@ ns.OnLogin(function()
     RefreshSoon()
 end)
 ns.On("UPDATE_CHAT_WINDOWS", function() WrapAllChatFrames() end)
+ns.On("ADDON_LOADED", function() WrapAllChatFrames() end)   -- an alert frame's addon loaded after MMT

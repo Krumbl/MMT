@@ -441,7 +441,7 @@ function mod.RedrawSessionKills()
             row.cells[1]:SetText(zone ~= prevZone and zone or "")
             prevZone = zone
             row.cells[2]:SetText(r[2])
-            row.cells[3]:SetText(r[3] and ("%.1f"):format(r[3]) or "-")
+            row.cells[3]:SetText(r[3] and tostring(math.floor(r[3] + 0.5)) or "-")
             row.cells[4]:SetText(Num(r[4]))
             row.cells[5]:SetText(r[5] > 0 and Num(r[5]) or "-")
             row.cells[6]:SetText((r[4] > 0 and r[5] > 0) and Num(r[5] / r[4]) or "-")

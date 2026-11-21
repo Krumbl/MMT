@@ -472,7 +472,7 @@ function mod.BuildEntries()
     local quests, zones, byZone = {}, {}, {}
     local function AddQuest(q, mine)
         if quests[q.id] then return end
-        local zone = (q.zone and q.zone ~= "") and q.zone or "Other"
+        local zone = mod.HUFCategory(q.id) or ((q.zone and q.zone ~= "") and q.zone or "Other")
         quests[q.id] = { q = q, mine = mine, zone = zone }
         if not byZone[zone] then byZone[zone] = {}; zones[#zones + 1] = zone end
         table.insert(byZone[zone], q.id)
@@ -509,8 +509,18 @@ function mod.BuildEntries()
         return readyMemo[id]
     end
     local current
+    local categories = mod.HUFCategoryOrder()
+    if categories then
+        -- only categories that hold quests are sections
+        for name in pairs(categories) do if not byZone[name] then categories[name] = nil end end
+        if not next(categories) then categories = nil end
+    end
     zones, current = mod.Arrange(zones, byZone, { data = data, members = members, own = own, ready = Ready,
-        level = function(id) return quests[id] and quests[id].q.level end })
+        level = function(id) return quests[id] and quests[id].q.level end, categories = categories })
+    -- HUF categories are always shown and never collapsed automatically (like the zone you are in)
+    if categories and current then
+        for name in pairs(categories) do current[name] = true end
+    end
 
     -- focus on one zone (ignored when that zone has no quests any more)
     local focus = M.store.focusZone

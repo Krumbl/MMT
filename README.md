@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.18: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.19: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -496,6 +496,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   (your continent, by distance to the middle of the zone or, with Questie loaded, to the
   nearest open objective) or A - Z; quests in a zone in quest-log order, by level, by team progress or nearest
   first (needs Questie); quests ready to turn in in order, on top or at the bottom.
+  With HUF loaded: "HUF quest categories" (on) shows quests you put into a category of
+  your own in HUF's quest log under that category, above the zones, in HUF's order
+  (also teammates' quests; always shown, never collapsed automatically).
   With a "nearest" order the tracker re-sorts every 5 s after you moved 20 yards and
   redraws only when the order changed.
   Background colour and opacity, width, maximum height (scrolls beyond; a scrolling list keeps that height, and a thin scroll bar shows while scrolling or under the mouse, then fades; drag it or click the track to scroll), indent,
@@ -671,6 +674,11 @@ Team abandon is QTAB:<questID>.
   the game's limit of about 10 messages per addon prefix and then 1 per second on group
   and guild channels, caps the data rate (800 bytes/s; Team > "Faster sending": 1200) and
   sends throttled messages again.
+- During instance boss fights the game blocks addon messages (AddOnMessageLockdown).
+  The queue then holds every message and sends it when the fight is over; alerts older
+  than 60 seconds are dropped. So during a boss fight team messages (follow, loot, kill
+  sharing, quest progress) arrive only afterwards; key presses and ISBoxer are not
+  affected. The debug report shows how often and how long.
 - Large transfers (settings sync, Item Compare and Quest Tracker snapshots) use their own
   prefix "MMTB", so they never delay the normal messages, and outside instances they go
   by whisper to each team member (whispers aren't throttled there).

@@ -63,6 +63,7 @@ local M = MMT.NewModule({
         questOrder    = "log",    -- log | level | progress | near
         readyQuests   = "keep",   -- keep | top | bottom
         useQuestie    = true,     -- distances from Questie when it is loaded
+        hufCategories = true,     -- HUF's own quest categories as sections (when HUF is loaded)
         width         = 260,
         maxHeight     = 450,
         scale         = 1,

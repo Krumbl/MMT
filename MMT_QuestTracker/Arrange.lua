@@ -184,6 +184,7 @@ end
 -- of zones you are in that have quests (nil when none).
 function mod.Arrange(zones, byZone, ctx)
     local cfg = M.db
+    local cats = ctx.categories   -- HUF categories: name -> order (they go first)
 
     -- quests inside each zone
     local qd = {}   -- id -> Questie distance (own quests, "near" only)
@@ -257,6 +258,7 @@ function mod.Arrange(zones, byZone, ctx)
             end
         end
         if cfg.currentZoneFirst and current and current[zone] then zrank[zone] = -1 end
+        if cats and cats[zone] then zrank[zone], zdist[zone], zindex[zone] = -2, nil, cats[zone] end
     end
     local ordered = {}
     for i, zone in ipairs(zones) do ordered[i] = zone end
@@ -273,6 +275,54 @@ function mod.Arrange(zones, byZone, ctx)
     end)
     return ordered, current
 end
+
+---------------------------------------------------------------------------
+-- HUF's own quest categories (HUF.QuestLog, API 1): quests a player put into a
+-- category of their own in HUF's quest log show under that category instead
+-- of their zone, above the zones, in HUF's order. Only with HUF loaded and the
+-- option "HUF quest categories" on. The categories are this client's (HUF
+-- profile); teammates' quests go by quest ID into them too.
+---------------------------------------------------------------------------
+local function HUFLog()
+    local huf = rawget(_G, "HUF")
+    local ql = type(huf) == "table" and rawget(huf, "QuestLog")
+    if type(ql) == "table" and (tonumber(ql.API) or 0) >= 1 and type(ql.GetCategory) == "function"
+        and type(ql.GetCategories) == "function" then return ql end
+end
+function mod.HUFCategoriesAvailable() return HUFLog() ~= nil end
+
+-- the category of a quest, or nil (its zone)
+function mod.HUFCategory(id)
+    if not M.db.hufCategories then return nil end
+    local ql = HUFLog()
+    if not ql then return nil end
+    local ok, name = pcall(ql.GetCategory, id)
+    return ok and type(name) == "string" and name ~= "" and name or nil
+end
+
+-- category name -> its place in HUF's list (nil when off / not loaded)
+function mod.HUFCategoryOrder()
+    if not M.db.hufCategories then return nil end
+    local ql = HUFLog()
+    if not ql then return nil end
+    local ok, list = pcall(ql.GetCategories)
+    if not ok or type(list) ~= "table" or #list == 0 then return nil end
+    local order = {}
+    for i, n in ipairs(list) do order[n] = i end
+    return order
+end
+
+-- redraw when the categories change in HUF (listen once HUF is there)
+local hufListening = false
+function mod.ListenHUF()
+    if hufListening then return end
+    local ql = HUFLog()
+    if ql and type(ql.Listen) == "function" then
+        hufListening = true
+        ql.Listen(function() if mod.Redraw then mod.Redraw() end end)
+    end
+end
+MMT.OnLogin(function() C_Timer.After(1, mod.ListenHUF) end)
 
 ---------------------------------------------------------------------------
 -- Zones collapsed / opened automatically ("otherZones" = collapse). The

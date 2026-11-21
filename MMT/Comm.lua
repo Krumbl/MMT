@@ -16,6 +16,12 @@
 -- Team messages go to the party/raid (or the guild in guild mode), and by
 -- whisper to team members who aren't reached that way.
 --
+-- Lockdown: during instance boss fights (and other restricted moments) the
+-- game blocks addon messages (result AddOnMessageLockdown). The queue then
+-- holds everything and sends it when the restriction ends: no message is
+-- lost, it only comes late. Alerts older than ALERT_STALE seconds are dropped
+-- then (they'd report a moment that is over).
+--
 -- Leader tag (FTL): a message can be meant only for the FTL leader ("@L:")
 -- or only for everybody but the leader ("@F:"). Each receiving client checks
 -- against the leader IT knows, drops the message if it isn't meant for it,
@@ -32,11 +38,17 @@ local SendAddon = (C_ChatInfo and C_ChatInfo.SendAddonMessage) or SendAddonMessa
 local ONLINE_TIMEOUT = 90
 local HEARTBEAT = 30
 
+-- result names: the game's own enum when it has one (the numbers moved in 12.0)
 local RESULT = {
     [0] = "Success", [1] = "InvalidPrefix", [2] = "InvalidMessage", [3] = "AddonMessageThrottle",
-    [4] = "InvalidChatType", [5] = "NotInGroup", [6] = "TargetRequiredForChatType",
-    [7] = "ChannelThrottle", [8] = "GeneralError",
+    [4] = "InvalidChatType", [5] = "NotInGroup", [6] = "TargetRequired", [7] = "InvalidChannel",
+    [8] = "ChannelThrottle", [9] = "GeneralError", [10] = "NotInGuild", [11] = "AddOnMessageLockdown",
+    [12] = "TargetOffline",
 }
+if Enum and type(Enum.SendAddonMessageResult) == "table" then
+    RESULT = {}
+    for name, v in pairs(Enum.SendAddonMessageResult) do RESULT[v] = name end
+end
 
 ns.bulkPrefix = ns.prefix .. "B"   -- "MMTB": large transfers
 -- The game counts the group/guild allowance (10 messages, then 1 per second)
@@ -69,7 +81,31 @@ end
 ns.CommRate = Rate
 
 local function IsSuccess(res) return res == 0 or res == true or res == nil end
-local function IsThrottle(res) return res == 3 or res == 7 end
+local function IsThrottle(res) return RESULT[res] == "AddonMessageThrottle" or RESULT[res] == "ChannelThrottle" end
+local function IsLockdown(res) return RESULT[res] == "AddOnMessageLockdown" end
+
+-- Lockdown (instance boss fights etc.): addon messages are blocked
+local ALERT_STALE = 60          -- seconds: older alerts are dropped when it ends
+local lockedSeen = 0            -- GetTime() of the last lockdown answer
+local lockdown = { since = nil, count = 0, held = 0, dropped = 0, last = nil }
+ns.commLockdown = lockdown
+local function GameSaysLocked()
+    if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
+        local ok, locked = pcall(C_ChatInfo.InChatMessagingLockdown)
+        if ok and locked then return true end
+    end
+    local RA, T = C_RestrictedActions, Enum and Enum.AddOnRestrictionType
+    if RA and RA.GetAddOnRestrictionState and T and T.Chat then
+        local ok, state = pcall(RA.GetAddOnRestrictionState, T.Chat)
+        local S = Enum.AddOnRestrictionState
+        if ok and state and S and state == S.Active then return true end
+    end
+    return false
+end
+local function Locked()
+    return GameSaysLocked() or GetTime() - lockedSeen < 2
+end
+ns.CommLocked = Locked
 
 -- is this message counted against the prefix allowance?
 local function Counted(channel)
@@ -102,8 +138,42 @@ local function Schedule(delay)
     C_Timer.After(delay or 0.1, function() pumpScheduled = false; Pump() end)
 end
 
+local function LockStart()
+    if lockdown.since then return end
+    lockdown.since = GetTime()
+    lockdown.count = lockdown.count + 1
+    ns.Debug("COMM lockdown: the game blocks addon messages, holding the queue")
+end
+-- while held: alerts that waited too long are dropped
+local function DropStale()
+    local now, q = GetTime(), queues.ALERT
+    for i = #q, 1, -1 do
+        if not q[i].done and now - (q[i].t or now) > ALERT_STALE then
+            table.remove(q, i)
+            lockdown.dropped = lockdown.dropped + 1
+            lockdown.droppedNow = (lockdown.droppedNow or 0) + 1
+        end
+    end
+end
+-- the first message got through again
+local function LockEnd()
+    if not lockdown.since then return end
+    local secs = GetTime() - lockdown.since
+    lockdown.since = nil
+    local held = #queues.ALERT + #queues.NORMAL + #queues.BULK
+    lockdown.last = ("%ds, %d more waiting, %d stale alerts dropped"):format(math.floor(secs + 0.5), held, lockdown.droppedNow or 0)
+    lockdown.droppedNow = 0
+    ns.Debug("COMM lockdown over after %s", lockdown.last)
+end
+
 Pump = function()
     if pumping then return end
+    if Locked() then
+        LockStart()
+        Schedule(2)
+        return
+    end
+    if lockdown.since then DropStale() end
     pumping = true
     local now = GetTime()
     bytesAvail = math.min(BURST, bytesAvail + (now - bytesTime) * Rate())
@@ -127,7 +197,15 @@ Pump = function()
             local b = Counted(item.channel) and Bucket(item.prefix)
             if b and b.tokens < 1 then break end
             local res = RawSend(item)
-            if IsThrottle(res) then
+            if IsLockdown(res) then
+                -- blocked (boss fight): keep it, try again when it's over
+                lockedSeen = GetTime()
+                lockdown.held = lockdown.held + 1
+                LockStart()
+                pumping = false
+                Schedule(2)
+                return
+            elseif IsThrottle(res) then
                 ns.commStats.throttled = ns.commStats.throttled + 1
                 if b then
                     b.tokens = 0
@@ -143,6 +221,7 @@ Pump = function()
                 if item.done then pcall(item.done, false, res) end
             else
                 table.remove(q, 1)
+                if IsSuccess(res) then LockEnd() end
                 bytesAvail = bytesAvail - size
                 if b then b.tokens = b.tokens - 1 end
                 ns.commStats.sent = ns.commStats.sent + 1
@@ -175,7 +254,7 @@ local function Send(msg, channel, target, prio, done, prefix)
             end
         end
     end
-    q[#q + 1] = { msg = msg, channel = channel, target = target, done = done, prefix = prefix or ns.prefix }
+    q[#q + 1] = { msg = msg, channel = channel, target = target, done = done, prefix = prefix or ns.prefix, t = GetTime() }
     local n = #queues.ALERT + #queues.NORMAL + #queues.BULK
     if n > ns.commStats.maxQueued then ns.commStats.maxQueued = n end
     Pump()
@@ -926,5 +1005,8 @@ ns.On("PLAYER_XP_UPDATE", SoonBroadcast)
 ns.On("UPDATE_EXHAUSTION", SoonBroadcast)
 ns.On("PLAYER_LEVEL_UP", function() C_Timer.After(1, function() ns.BroadcastXP(true) end) end)
 ns.On("PLAYER_LOGOUT", function() if ns.db then ns.SendToTeam("BYE", true, "ALERT") end end)
+-- the restriction ended (or starts): send what waits
+ns.On("ADDON_RESTRICTION_STATE_CHANGED", function() C_Timer.After(0.2, Pump) end)
+ns.On("ENCOUNTER_END", function() C_Timer.After(0.5, Pump) end)
 ns.Listen("TEAM_CHANGED", function() if ns.ready then ns.BroadcastXP(false) end end)
 ns.Listen("LAYER_CHANGED", function() if ns.ready then ns.BroadcastXP(true) end end)

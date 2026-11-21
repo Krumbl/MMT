@@ -116,6 +116,9 @@ function ns.BuildDebugReport()
             tostring(st.sent), tostring(st.bytes), tostring(st.throttled), tostring(st.failed), qa, qn, qb,
             tostring(st.maxQueued), tostring(ns.CommRate and ns.CommRate()), tostring(ns.GuildMode and ns.GuildMode()),
             tostring(IsInGuild()), tostring(IsInInstance and IsInInstance())))
+        local ld = ns.commLockdown or {}
+        add(("Comm lockdown (boss fights): now=%s  times=%d  blocked sends=%d  stale alerts dropped=%d  last=%s"):format(
+            tostring(ns.CommLocked and ns.CommLocked()), ld.count or 0, ld.held or 0, ld.dropped or 0, tostring(ld.last or "-")))
         local rs = ns.recvStats or {}
         add(("Receive: addon events=%s (any addon)  MMT=%s  secret text=%s  secret sender=%s  own echo=%s"):format(
             tostring(rs.events), tostring(rs.ours), tostring(rs.secretText), tostring(rs.secretSender), tostring(rs.self)))

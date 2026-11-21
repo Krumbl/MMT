@@ -139,6 +139,12 @@ M.Page = function(_, page)
     UI.Tooltip(zoCycle, "Order of the zones", "Nearest first: zones on your continent by distance (to the nearest quest objective with Questie, otherwise to the middle of the zone), then other continents, then headers that aren't zones (class quests and the like). Re-sorted while you move.")
     ZL:Space(4)
     ZL:Note("Quests only teammates have are sorted into their zones too.")
+    if mod.HUFCategoriesAvailable() then
+        ZL:Space(4)
+        local ghc, shc = Opt("hufCategories")
+        ZL:Check("HUF quest categories", ghc, function(v) shc(v) mod.ListenHUF() if mod.Redraw then mod.Redraw() end end,
+            "Quests you put into a category of your own in HUF's quest log (right-click a quest there) show under that category instead of their zone, above the zones, in HUF's order. Teammates' quests go into your categories too.")
+    end
 
     local _, QR = Tile(Or, X2, 0, TILE_W, PANEL_H, "Quests", "Interface\\Icons\\INV_Misc_Note_02")
     local gqo, sqo = Opt("questOrder")

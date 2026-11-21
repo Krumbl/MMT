@@ -10,9 +10,10 @@ local _, ns = ...
 
 local gossipHandlers = {}
 
--- fn() returns true when it handled the gossip window (e.g. picked a quest)
-function ns.AddGossipHandler(fn)
-    gossipHandlers[#gossipHandlers + 1] = fn
+-- fn() returns true when it handled the gossip window (e.g. picked a quest);
+-- first: runs before the others (NPC Replay)
+function ns.AddGossipHandler(fn, first)
+    if first then table.insert(gossipHandlers, 1, fn) else gossipHandlers[#gossipHandlers + 1] = fn end
 end
 
 local VENDOR_ICON = 132060 -- Interface\GossipFrame\VendorGossipIcon

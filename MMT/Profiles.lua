@@ -143,6 +143,8 @@ ns.defaults = {
     -- quest settings moved to the Quest Tracker module (profile.quests of older
     -- profiles is copied over by the module once)
     gossip   = { vendor = true, taxi = true, bank = true, dialog = true },
+    -- NPC Replay (NPCReplay.lua): record a talk with an NPC, the team replays it
+    npcReplay = { enabled = true, button = true, armSeconds = 15, rewards = "same", report = true },
     -- items never traded / mailed by MMT, whatever role wants them:
     -- { { itemID, name, trade = true, mail = true }, ... } (Trade / Mail / Vendor > Exclusion List)
     exclusions = {},

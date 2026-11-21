@@ -54,7 +54,7 @@ end)
 
 -- old-style quest greeting (NPC with several quests, no gossip)
 M:On("QUEST_GREETING", function()
-    if MMT.IsBypassed() then return end
+    if MMT.IsBypassed() or (MMT.NPCReplayHas and MMT.NPCReplayHas()) then return end
     local q = M.db
     if q.turnIn then
         for i = 1, GetNumActiveQuests() do
@@ -84,13 +84,16 @@ end)
 ---------------------------------------------------------------------------
 local sharedOffer = {} -- [questID] = time a group member offered it (those aren't shared again)
 
+-- NPC Replay plays a recorded talk with this NPC: it does these pages
+local function Replaying() return MMT.NPCReplayHas and MMT.NPCReplayHas() end
+
 M:On("QUEST_DETAIL", function()
     local shared = OfferedByPlayer()
     if shared and GetQuestID then
         local id = GetQuestID()
         if id and id > 0 then sharedOffer[id] = GetTime() end
     end
-    if MMT.IsBypassed() then return end
+    if MMT.IsBypassed() or Replaying() then return end
     local q = M.db
     if shared and not q.acceptShared then return end
     if not shared and not q.acceptNPC then return end
@@ -113,7 +116,7 @@ end)
 -- Turn in
 ---------------------------------------------------------------------------
 M:On("QUEST_PROGRESS", function()
-    if MMT.IsBypassed() or not M.db.turnIn then return end
+    if MMT.IsBypassed() or Replaying() or not M.db.turnIn then return end
     if not IsQuestCompletable() then return end
     if GetQuestMoneyToGet and (GetQuestMoneyToGet() or 0) > 0 then -- never hand over gold automatically
         M:Debug("Quest costs money, left manual")
@@ -123,7 +126,7 @@ M:On("QUEST_PROGRESS", function()
 end)
 
 M:On("QUEST_COMPLETE", function()
-    if MMT.IsBypassed() or not M.db.turnIn then return end
+    if MMT.IsBypassed() or Replaying() or not M.db.turnIn then return end
     local choices = GetNumQuestChoices() or 0
     if choices > 1 then
         MMT.Print("Choose your quest reward.")

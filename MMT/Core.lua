@@ -4,7 +4,7 @@
 local ADDON, ns = ...
 _G.MMT = ns
 ns.title = "MMT"
-ns.version = "1.2.23"
+ns.version = "1.2.24"
 ns.prefix = "MMT"
 ns.LOGO = "Interface\\AddOns\\MMT\\Media\\Logo"   -- the MMT mark (Media/Logo.tga)
 ns.ICON = "Interface\\AddOns\\MMT\\Media\\Icon"   -- the mark on a dark tile (Media/Icon.tga)
@@ -448,6 +448,7 @@ end
 -- then pick an option without Shift, the next page is automated again.
 ---------------------------------------------------------------------------
 function ns.IsBypassed()
+    if ns.NPCReplayHolds and ns.NPCReplayHolds() then return true end   -- recording an NPC talk
     return ns.db.shiftBypass and IsShiftKeyDown() and true or false
 end
 

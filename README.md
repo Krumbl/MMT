@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.23: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.24: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -527,6 +527,19 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   "mybox"), camera zoom, distance window (off by default; distance to your target, mostly for hunters
   avoiding the dead zone; font, outline, alignment, size, width and background are in
   "Format window", a small window beside the settings).
+  - "NPC Replay" (side window, on): record a talk with an NPC on one character and the
+    team replays it. Press the key binding "Record an NPC talk" (Key Bindings > MMT) or
+    `/mmt record`, then talk to the NPC within 15 seconds (adjustable): MMT's gossip and
+    quest automation pauses from the press until the talk is over, so every page is
+    yours. Or click "Rec" on the gossip / quest window to record from that page on
+    ("Stop" ends it). Recorded: dialog lines, quests picked, Accept, Complete and the
+    quest reward. The talk ends when no NPC window was open for 1.5 s; the steps go to
+    the team (NPCR). A team member that talks to the same NPC (NPC ID, else name) within
+    10 minutes walks through them, or starts at once when that NPC's window is open
+    already. Steps that don't fit (a quest it has already, a line it doesn't see) are
+    skipped; quest reward: same choice (by position) or "Leave to me"; quests that cost
+    gold and lines asking for a confirmation stay manual. While a replay has steps
+    left, the Quest Tracker's accept / turn-in leaves that NPC's quest pages to it.
   - "Take flight paths with the team": when a team member picks a destination at a
     flight master, every team member talking to a flight master too (flight map open, or
     opened within 5 seconds) flies to the same destination (as in EMA). "Tell the

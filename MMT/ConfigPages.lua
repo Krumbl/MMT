@@ -1427,9 +1427,10 @@ end)
 -- Automations (formerly OMT)
 ---------------------------------------------------------------------------
 -- Automations > Miscellaneous: camera and distance window in a side window
-local autoMisc
+local autoMisc, replayWin
 function ns.ToggleAutomationsMisc(window)
     if autoMisc and autoMisc:IsShown() then autoMisc:Hide() return end
+    if replayWin then replayWin:Hide() end
     if not autoMisc then
         local f = CreateFrame("Frame", "MMTAutomationsMiscFrame", window)   -- scales and hides with the settings window
         f:SetFrameStrata(window:GetFrameStrata())
@@ -1470,6 +1471,55 @@ function ns.ToggleAutomationsMisc(window)
     autoMisc:SetPoint("TOPLEFT", window, "TOPRIGHT", 6, 0)
     autoMisc:Show()
     for _, w in ipairs(autoMisc.widgets) do w.Refresh() end
+end
+
+-- Automations > NPC Replay: its options in a side window (NPCReplay.lua)
+function ns.ToggleNPCReplayWindow(window)
+    if replayWin and replayWin:IsShown() then replayWin:Hide() return end
+    if autoMisc then autoMisc:Hide() end
+    if not replayWin then
+        local f = CreateFrame("Frame", "MMTNPCReplayFrame", window)
+        f:SetFrameStrata(window:GetFrameStrata())
+        f:SetFrameLevel(window:GetFrameLevel() + 50)
+        f:EnableMouse(true)
+        f:SetClampedToScreen(true)
+        UI.Fill(f, 0.05, 0.05, 0.06, 0.96)
+        UI.Border(f, 0.22, 0.22, 0.24, 1)
+        f.widgets = {}
+        local title = UI.Label(f, "NPC Replay", "GameFontNormal")
+        title:SetPoint("TOPLEFT", 16, -14)
+        local close = UI.TextButton(f, "x", function() f:Hide() end, 20)
+        close:SetPoint("TOPRIGHT", -8, -8)
+
+        local C = UI.Column(f, 16, -34, COL_W)
+        C:Note("Record a talk with an NPC on one character (dialog lines, quests picked, Accept, Complete, the quest reward) and the team replays it when they talk to the same NPC within 10 minutes.")
+        C:Space(4)
+        local gen, sen = Opt("npcReplay", "enabled")
+        C:Check("Enable NPC Replay", gen, function(v) sen(v) ns.Refresh() end,
+            "Records on this character and replays the team's recordings here. Needs MMT on every client.")
+        local gbt, sbt = Opt("npcReplay", "button")
+        C:Check("\"Rec\" button on NPC windows", gbt, function(v) sbt(v) ns.Refresh() end,
+            "A small button beside the close button of the gossip and quest windows: records from that page on; again: stop and send.")
+        local gas, sas = Opt("npcReplay", "armSeconds")
+        C:Slider("Pause automation (s)", 5, 60, 5, gas, sas, "%d")
+        C:Note("The key binding (Key Bindings > MMT > \"Record an NPC talk\") or /mmt record pressed before talking: MMT's gossip and quest automation pauses this long while you go to the NPC, and until the talk is over, so you record it from the first page.")
+        C:Space(4)
+        local grw, srw = Opt("npcReplay", "rewards")
+        local cyc = C:Cycle("Quest reward", {
+            { value = "same", text = "Same as recorded" },
+            { value = "manual", text = "Leave to me" },
+        }, grw, srw)
+        UI.Tooltip(cyc, "Quest reward", "On replay, a quest with several rewards: the same choice (by position) as on the recording character, or left to you. A quest with one reward or none is always turned in.")
+        C:Check("Print to chat", Opt("npcReplay", "report"))
+        f:SetSize(COL_W + 32, -C.y + 12)
+        f:SetScript("OnShow", function(self) for _, w in ipairs(self.widgets) do w.Refresh() end end)
+        UI.CloseOnEscape(f)
+        replayWin = f
+    end
+    replayWin:ClearAllPoints()
+    replayWin:SetPoint("TOPLEFT", window, "TOPRIGHT", 6, 0)
+    replayWin:Show()
+    for _, w in ipairs(replayWin.widgets) do w.Refresh() end
 end
 
 ns.RegisterPage("automations", "Automations", function(page)
@@ -1597,6 +1647,9 @@ ns.RegisterPage("automations", "Automations", function(page)
     O:Space(4)
     local misc = O:Button("Miscellaneous", function() ns.ToggleAutomationsMisc(page:GetParent()) end)
     UI.Tooltip(misc, "Miscellaneous", "Opens a window beside this one: maximum camera distance and the distance window.")
+    O:Space(4)
+    local replay = O:Button("NPC Replay", function() ns.ToggleNPCReplayWindow(page:GetParent()) end)
+    UI.Tooltip(replay, "NPC Replay", "Opens a window beside this one: record a talk with an NPC (dialog lines, quests, reward) and have the team replay it.")
 end)
 
 ---------------------------------------------------------------------------

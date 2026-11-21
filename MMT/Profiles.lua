@@ -59,6 +59,7 @@ ns.defaults = {
                                  -- piece's icon: gold right, bags / durability left); OFF: each row flows
         width       = 325,
         barMode     = "XP",      -- XP | REP: what the bar (and its % value) shows
+        hideOtherXP = false,     -- the game's XP bar and EllesmereUI's out of sight (the Info window has it)
         barHeight   = 18,
         rowGap      = 3,         -- pixels between the rows
         bgAlpha     = 0.35,

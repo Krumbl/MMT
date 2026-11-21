@@ -917,6 +917,11 @@ ns.RegisterPage("xp", "Info Window", function(page)
         { value = "XP", text = "Experience" },
         { value = "REP", text = "Reputation (watched faction)" },
     }, gbm, sbm)
+    local gho, sho = Opt("xp", "hideOtherXP")
+    B:Check("Hide other XP bars", gho, function(v)
+        sho(v)
+        if not v then ns.Print("Other XP bars: the game's comes back now, EllesmereUI's after /reload.") end
+    end, "The game's XP bar and EllesmereUI's XP bar go out of sight while this is on. A watched reputation bar stays.")
 
     -- General Look & Feel ---------------------------------------------------
     local gtile, G = Tile(page, X2, TOP, TILE_W, TOP_H, "General Look & Feel", "Interface\\Icons\\INV_Misc_Ribbon_01")

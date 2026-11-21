@@ -1001,7 +1001,71 @@ function ns.ToggleXPWindow()
     ns.Refresh()
 end
 
+---------------------------------------------------------------------------
+-- Other XP bars out of sight (option xp.hideOtherXP)
+--   * the game's: the status bar container that shows XP goes to alpha 0
+--     and its bar takes no mouse (never Hide: the game's bottom bars / Edit
+--     Mode lay it out); a container showing a reputation stays
+--   * EllesmereUI's XP bar: hidden, and hidden again whenever it shows; it
+--     comes back on the next /reload after switching the option off
+---------------------------------------------------------------------------
+local faded = {}            -- frame -> true: alpha / mouse changed by MMT
+local function Fade(fr, on)
+    if on then
+        if fr:GetAlpha() ~= 0 then fr:SetAlpha(0) end
+        if not faded[fr] then
+            faded[fr] = true
+            if fr.EnableMouse and not InCombatLockdown() then pcall(fr.EnableMouse, fr, false) end
+        end
+    elseif faded[fr] then
+        faded[fr] = nil
+        fr:SetAlpha(1)
+        if fr.EnableMouse and not InCombatLockdown() then pcall(fr.EnableMouse, fr, true) end
+    end
+end
+
+-- the game's container is showing the XP bar
+local function ShowsXP(c)
+    local BE = StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
+    local xp = BE and BE.Experience
+    if xp and c.shownBarIndex ~= nil then return c.shownBarIndex == xp end
+    local bar = xp and type(c.bars) == "table" and c.bars[xp]
+    return bar and bar.IsShown and bar:IsShown() or false
+end
+
+local ellesmereHooked
+local function HideOtherXP()
+    local on = ns.db and ns.db.xp and ns.db.xp.hideOtherXP and true or false
+    for _, name in ipairs({ "MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer" }) do
+        local c = _G[name]
+        if c then
+            local xp = on and ShowsXP(c)
+            Fade(c, xp)
+            local BE = StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
+            local bar = BE and type(c.bars) == "table" and c.bars[BE.Experience]
+            if bar then Fade(bar, xp) end
+        end
+    end
+    -- older clients: the classic XP bar
+    for _, name in ipairs({ "MainMenuExpBar", "ExhaustionTick" }) do
+        if _G[name] then Fade(_G[name], on) end
+    end
+    local e = _G.EllesmereEAB_XPBar
+    if e then
+        if on and e:IsShown() then e:Hide() end
+        if on and not ellesmereHooked then
+            ellesmereHooked = true
+            hooksecurefunc(e, "Show", function(self)
+                if ns.db and ns.db.xp and ns.db.xp.hideOtherXP then self:Hide() end
+            end)
+        end
+    end
+end
+ns.HideOtherXP = HideOtherXP
+
 ns.OnRefresh(Layout)
+ns.OnRefresh(HideOtherXP)
+ns.OnLogin(function() C_Timer.NewTicker(0.5, HideOtherXP) end)
 ns.Listen("STATUS_CHANGED", ns.Coalesce(Update, 0.1))   -- bursts (follow spam, many heartbeats): one redraw
 ns.Listen("TEAM_CHANGED", Update)
 ns.Listen("PROFILE_CHANGED", function() if ns.ready then Layout() end end)

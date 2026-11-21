@@ -20,7 +20,9 @@
 -- entering the same copy again continues its run. WoW: Forever hides those
 -- GUIDs inside instances: then every entry starts a new row, and when the
 -- same instance was left within 3 hours (no reset since) the player is asked
--- whether it is the same copy ("Same instance" merges the rows).
+-- whether it is the same copy ("Same instance" merges the rows). Logged in
+-- inside an instance: the visit continues, but it may have been reset while
+-- logged out, so the player is asked ("New instance" splits the row).
 -- Time counts every 5 s while logged in (gaps over 30 s, e.g. a frozen
 -- client, count as 30 s).
 
@@ -129,22 +131,37 @@ local function UpdateZone()
     c.runs = c.runs or {}
     if inst then
         if not run or run.map ~= map then
-            if run then run.leave, run.lvOut = time(), Level() end
+            if run then run.leave, run.lvOut, run.relogLeft = time(), Level(), nil end
             -- every entry starts a new row (WoW: Forever hides the instance copy ID);
             -- when the last row is the same instance, left within 3 hours and not
             -- reset since, the player is asked whether it is the same copy (as
             -- NovaInstanceTracker does) and the rows are merged on "Same instance".
-            -- After a /reload (or a relog within 2 minutes) in the instance it is
-            -- the same one without asking, unless it was left over an hour ago.
+            -- After a /reload in the instance it is the same one without asking,
+            -- unless it was left over an hour ago. Logged in inside the instance
+            -- (relog): the same one too, but it may have been reset while logged
+            -- out, so the player is asked ("New instance" splits the row).
             local last = c.runs[#c.runs]
             local sameMap = last and last.map == map and last.leave and not last.reset
             local firstRead = not sessionZoneRead
-            if sameMap and firstRead and (time() - last.leave) < 3600
-                and (reloading or (time() - last.leave) < 120) then
+            if sameMap and firstRead and reloading and (time() - last.leave) < 3600 then
                 run = last
                 run.leave = nil
                 M:Debug("instance: back in %s after a reload: same instance", tostring(name))
                 mod.InstanceNote(("Back in %s after a reload: same instance (%s)."):format(tostring(name), mod.RunLabel(run)))
+            elseif sameMap and firstRead and not reloading and (time() - last.leave) < ASK_GAP then
+                local leftAt = last.leave
+                run = last
+                run.leave = nil
+                run.relogLeft = leftAt   -- when it logged out (a split goes back to it)
+                M:Debug("instance: logged in inside %s (logged out %ds ago): same instance unless answered otherwise",
+                    tostring(name), time() - leftAt)
+                local ask = M.db.askSameInstance ~= false
+                mod.InstanceNote(("Logged in inside %s: %s (%s)."):format(tostring(name),
+                    ask and "the same instance unless you answer \"New instance\"" or "same instance", mod.RunLabel(run)))
+                if ask then
+                    local cont = run
+                    C_Timer.After(2, function() mod.AskRelogInstance(cont) end)
+                end
             else
                 local need = tonumber(Plain(Safe(UnitXPMax, "player"))) or 0
                 run = { map = map, n = name, enter = time(), t = 0, k = 0, d = 0, q = 0, xp = 0, lvIn = Level(), zn = lastLand,
@@ -167,7 +184,7 @@ local function UpdateZone()
             for k in pairs(said) do said[k] = nil end
         end
     elseif run then
-        run.leave, run.lvOut = time(), Level()
+        run.leave, run.lvOut, run.relogLeft = time(), Level(), nil
         run = nil
     end
     if key then sessionZoneRead = true end
@@ -257,6 +274,39 @@ local function MergeRuns(target, src)
 end
 mod.MergeRuns = MergeRuns
 
+-- logged in inside an instance that may have been reset meanwhile: the row
+-- continues; "New instance" starts a new one from the login (counts toward
+-- the hourly limit)
+function mod.SplitRun(old, reason)
+    local c = mod.Char()
+    if not c or not old or run ~= old then return end
+    local need = tonumber(Plain(Safe(UnitXPMax, "player"))) or 0
+    local new = { map = old.map, n = old.n, enter = time(), t = 0, k = 0, d = 0, q = 0, xp = 0, lvIn = Level(),
+                  zn = old.zn, need = need > 0 and need or nil }
+    old.leave, old.lvOut = old.relogLeft or time(), old.lvOut or Level()
+    old.relogLeft = nil
+    table.insert(c.runs, new)
+    while #c.runs > MAX_RUNS do table.remove(c.runs, 1) end
+    run = new
+    M:Debug("instance: %s is a new instance (%s)", tostring(new.n), reason)
+    mod.InstanceNote(("%s: new instance (%s). %s"):format(tostring(new.n), mod.RunLabel(new), mod.HourText()))
+    if mod.Redraw then mod.Redraw() end
+    return new
+end
+
+function mod.AskRelogInstance(cont)
+    if run ~= cont or not cont.relogLeft then return end   -- left, or the copy ID decided
+    MMT.UI.Confirm(("You logged in inside %s.\n\nIs it still the same instance as before you logged out (%s)? If it was reset meanwhile, choose \"New instance\"."):format(
+            cont.n or "the instance", date("%H:%M", cont.relogLeft)),
+        "Same instance", function()
+            cont.relogLeft = nil
+            M:Debug("instance: same instance after the login (player)")
+        end,
+        "New instance", function()
+            if run == cont and cont.relogLeft then mod.SplitRun(cont, "player, after the login") end
+        end)
+end
+
 function mod.AskSameInstance(last, new)
     local c = mod.Char()
     if not c then return end
@@ -293,6 +343,13 @@ local function SeeGUID(unit)
     end
     run.checked = true
     local c = mod.Char()
+    -- logged in inside: another copy ID than before the logout = reset meanwhile
+    if run.relogLeft and run.uid and run.uid ~= uid then
+        local new = mod.SplitRun(run, ("copy %d, was %d"):format(uid, run.uid))
+        if new then new.uid, new.checked = uid, true end
+        return
+    end
+    if run.relogLeft and run.uid == uid then run.relogLeft = nil end   -- the same copy: no question
     run.uid = uid
     -- the same copy ID as an earlier visit (within 3 hours, no reset): merged without asking
     for i = #c.runs, 1, -1 do
@@ -534,7 +591,7 @@ M:On("PLAYER_REGEN_ENABLED", function()
         for i = 1, 40 do if run and not run.checked then SeeGUID("nameplate" .. i) end end
     end)
 end)
-M:On("PLAYER_LOGOUT", function() Tick() if run then run.leave, run.lvOut = time(), Level() end end)
+M:On("PLAYER_LOGOUT", function() Tick() if run then run.leave, run.lvOut, run.relogLeft = time(), Level(), nil end end)
 
 local started
 local function Start()

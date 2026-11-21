@@ -242,3 +242,8 @@ ns.On("SPELLS_CHANGED", function()
         ScanSpells()
     end)
 end)
+
+-- HUF's unlock mode moves the distance window too
+ns.OnLogin(function()
+    ns.HUFMover("distance", "Distance", f, function(fr) ns.db.distance.point = ns.PointOf(fr) end, nil, "xp")
+end)

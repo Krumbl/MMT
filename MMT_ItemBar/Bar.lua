@@ -266,3 +266,10 @@ M:On("PLAYER_REGEN_ENABLED", function()
     if pendingAttributes then pendingAttributes = false mod.Update() end
 end)
 MMT.OnRefresh(function() if MMT.ready then mod.Update() end end)
+
+-- HUF's unlock mode moves the item bar too
+MMT.OnLogin(function()
+    if MMT.HUFMover then
+        MMT.HUFMover("itembar", "Item bar", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "mod:ItemBar")
+    end
+end)

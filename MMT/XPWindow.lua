@@ -1072,3 +1072,9 @@ ns.Listen("PROFILE_CHANGED", function() if ns.ready then Layout() end end)
 ns.OnLogin(function()
     C_Timer.NewTicker(5, Update) -- drops members whose heartbeat stopped, updates phase tags
 end)
+
+-- HUF's unlock mode moves the Info window too
+ns.OnLogin(function()
+    ns.HUFMover("info", "Info window", f, function(fr) ns.db.xp.point = ns.PointOf(fr) end,
+        function() return ns.db.xp.enabled end, "xp")
+end)

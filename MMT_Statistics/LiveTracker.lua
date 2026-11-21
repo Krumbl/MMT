@@ -717,3 +717,22 @@ M.Report = function(m, add)
         DockWanted() and not Docked() and " - meter window not found" or "")
         .. (mod.liveLayoutError and ("  layout error: " .. mod.liveLayoutError) or ""))
 end
+
+-- HUF's unlock mode moves the live tracker too, docked or not: let go next
+-- to a meter window and it docks there, anywhere else it is free (as when
+-- dragging it here)
+MMT.OnLogin(function()
+    if MMT.HUFMover then
+        MMT.HUFMover("livetracker", "Live tracker", function() return f end, function()
+            local side, win = mod.LiveSnap()
+            if side then
+                M.db.liveDock, M.db.liveDockWin = side, win
+            else
+                if DockWanted() then M.db.liveDock = "OFF" end
+                SavePoint()
+            end
+            mod.UpdateLiveTracker()
+            if MMT.RefreshConfig then MMT.RefreshConfig() end
+        end, nil, "mod:Statistics")
+    end
+end)

@@ -162,6 +162,9 @@ local function Build()
     w:SetSize(WIDTH, HEIGHT)
     w:SetPoint("CENTER")
     w:SetFrameStrata("DIALOG")
+    -- in front of other addons' settings windows (HUF's) when shown or clicked:
+    -- two windows on one strata otherwise mix their parts
+    w:SetToplevel(true)
     w:SetClampedToScreen(true)
     w:SetMovable(true)
     w:EnableMouse(true)
@@ -459,6 +462,7 @@ local function Build()
     if ns.BuildConfigSearch then ns.BuildConfigSearch(w) end   -- the search box, top right (Search.lua)
 
     w:SetScript("OnShow", function()
+        w:Raise()
         ns.configOpen = true
         ns.ApplyBackground(w)   -- "My class" follows the talents
         Select(current or "team")

@@ -1171,3 +1171,10 @@ M:On("QUEST_LOG_UPDATE", MMT.Coalesce(function()
     -- (not again right after a read of ours: selecting the entries may report a change itself)
     if M.enabled and M.db.showTimers and GetTime() - lastRead > 2 then mod.ReadQuestTimers() end
 end, 1))
+
+-- HUF's unlock mode moves the quest tracker too
+MMT.OnLogin(function()
+    if MMT.HUFMover then
+        MMT.HUFMover("questtracker", "Quest tracker", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "QuestTracker")
+    end
+end)

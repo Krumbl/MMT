@@ -4,7 +4,7 @@
 local ADDON, ns = ...
 _G.MMT = ns
 ns.title = "MMT"
-ns.version = "1.2.20"
+ns.version = "1.2.23"
 ns.prefix = "MMT"
 ns.LOGO = "Interface\\AddOns\\MMT\\Media\\Logo"   -- the MMT mark (Media/Logo.tga)
 ns.ICON = "Interface\\AddOns\\MMT\\Media\\Icon"   -- the mark on a dark tile (Media/Icon.tga)
@@ -513,6 +513,26 @@ end
 function ns.OnRefresh(fn) ns.Listen("REFRESH", fn) end
 function ns.Refresh() ns.Fire("REFRESH") end
 function ns.OnLogin(fn) ns.Listen("LOGIN", fn) end
+
+-- MMT windows in HUF's unlock mode (HUF.RegisterMover, when HUF is loaded):
+-- HUF draws a box over the window, snaps it to other frames and moves it;
+-- save(frame) stores the new place the window's own way (the frame already
+-- stands there); right-click on the box opens the settings page. Modules
+-- call it from their login code. Without HUF: nothing.
+function ns.HUFMover(id, label, frame, save, shown, page)
+    local H = _G.HUF
+    if type(H) ~= "table" or type(H.RegisterMover) ~= "function" then return false end
+    local ok = pcall(H.RegisterMover, "MMT:" .. id, {
+        label = "MMT " .. label, frame = frame, save = save, shown = shown,
+        settings = page and function() ns.ToggleConfig(page) end,
+    })
+    return ok
+end
+-- the place a window stands now, as MMT stores it ({ point, relPoint, x, y })
+function ns.PointOf(frame)
+    local point, _, relPoint, x, y = frame:GetPoint()
+    return { point, relPoint, math.floor(x + 0.5), math.floor(y + 0.5) }
+end
 
 ---------------------------------------------------------------------------
 -- Key bindings: one group "MMT (Manage My Team)" in the game's key binding

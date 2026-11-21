@@ -860,6 +860,111 @@ local function Layout(tt, data)
         table.concat(top, " "), table.concat(parts, " | ")))
     while #layouts > 3 do table.remove(layouts) end
 end
+---------------------------------------------------------------------------
+-- Quest lines of group members on a unit tooltip ("<name>" over "1/1 ...
+-- slain", one pair per member who has the quest). In instances the name,
+-- its guid and the progress are all secret, so which member a line is can
+-- only come from the order. Outside instances (names readable) MMT watches
+-- whether the lines follow the group order (party1, party2, ...) and where
+-- your own character stands (first, last, not listed); once that held and
+-- never failed, a secret block whose line count matches gets the members'
+-- names in that order. Anything else keeps "(team member)".
+-- Kept in MMTDB.questOrder: { ok, bad, first, last, none } (counts).
+---------------------------------------------------------------------------
+local function QuestOrder()
+    MMTDB.questOrder = MMTDB.questOrder or { ok = 0, bad = 0, first = 0, last = 0, none = 0 }
+    return MMTDB.questOrder
+end
+local function Plain(text)
+    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+-- the unit (player / partyN) whose name a readable quest line shows
+local function UnitByName(text)
+    local want = Plain(text)
+    for _, unit in ipairs({ "player", "party1", "party2", "party3", "party4" }) do
+        local n = ns.Safe(UnitName, unit)
+        if n and not ns.IsSecret(n) and n == want then return unit end
+    end
+    return nil
+end
+-- the quest blocks: the indexes of their QuestPlayer lines, in order
+local function QuestBlocks(data)
+    local LINE = Enum and Enum.TooltipDataLineType or {}
+    local blocks, cur = {}, nil
+    for i, line in ipairs(data.lines) do
+        if line.type == LINE.QuestTitle then
+            cur = {}
+            blocks[#blocks + 1] = cur
+        elseif line.type == LINE.QuestPlayer and cur then
+            cur[#cur + 1] = i
+        end
+    end
+    return blocks
+end
+-- outside instances: does this tooltip's order follow the group order?
+local function LearnOrder(tt, data)
+    if IsInRaid() or not IsInGroup() then return end
+    local name = tt:GetName()
+    for _, block in ipairs(QuestBlocks(data)) do
+        if #block >= 2 then
+            local units, readable = {}, true
+            for _, i in ipairs(block) do
+                local fs = _G[name .. "TextLeft" .. i]
+                local text = fs and fs:GetText()
+                local unit = type(text) == "string" and not ns.IsSecret(text) and UnitByName(text)
+                if not unit then readable = false break end
+                units[#units + 1] = unit
+            end
+            if readable then
+                local o, last, selfAt = QuestOrder(), 0, nil
+                local inOrder = true
+                for pos, unit in ipairs(units) do
+                    if unit == "player" then selfAt = pos
+                    else
+                        local n = tonumber(unit:match("%d+"))
+                        if n <= last then inOrder = false end
+                        last = n
+                    end
+                end
+                if selfAt and selfAt ~= 1 and selfAt ~= #units then inOrder = false end
+                if inOrder then o.ok = o.ok + 1 else o.bad = o.bad + 1 end
+                if not selfAt then o.none = o.none + 1
+                elseif selfAt == 1 then o.first = o.first + 1
+                else o.last = o.last + 1 end
+            end
+        end
+    end
+end
+-- inside: the names for one secret block, or nil (not sure)
+local function OrderedNames(count)
+    local o = QuestOrder()
+    if o.ok < 1 or o.bad > 0 or IsInRaid() then return nil end
+    local party = {}
+    for i = 1, GetNumSubgroupMembers() do party[#party + 1] = "party" .. i end
+    local units
+    if count == #party + 1 then
+        if o.first >= o.last and o.first > 0 then units = { "player" } for _, u in ipairs(party) do units[#units + 1] = u end
+        elseif o.last > 0 then units = {} for _, u in ipairs(party) do units[#units + 1] = u end units[#units + 1] = "player"
+        else return nil end
+    elseif count == #party and o.none > 0 then
+        units = party
+    else
+        return nil
+    end
+    local names = {}
+    for i, unit in ipairs(units) do
+        local _, _, full = ns.SplitUnit(unit)
+        local key = full and ns.Resolve(full)
+        if key then names[i] = AliasOf(key)
+        else
+            local n = ns.Safe(UnitName, unit)
+            names[i] = (n and not ns.IsSecret(n)) and n or nil
+        end
+        if not names[i] then return nil end
+    end
+    return names
+end
+
 local function MaskSecretLines(tt, data)
     if not (Active() and type(data) == "table" and type(data.lines) == "table") then return end
     if not LINE_NAME then
@@ -876,6 +981,21 @@ local function MaskSecretLines(tt, data)
     -- last two generic (None) lines, after the name, the two lines below it
     -- (level, type) and any quest block. The dumps showed every line, colours
     -- included, secret, so their position is all there is to go by.
+    -- members' quest lines: their names by the group order, when MMT is sure of it
+    local questNames = {}
+    local anySecret = false
+    for _, block in ipairs(QuestBlocks(data)) do
+        local first = block[1] and _G[name .. "TextLeft" .. block[1]]
+        local t = first and first:GetText()
+        if t ~= nil and ns.IsSecret(t) then
+            anySecret = true
+            local names = OrderedNames(#block)
+            if names then
+                for k, i in ipairs(block) do questNames[i] = names[k] end
+            end
+        end
+    end
+    if not anySecret then pcall(LearnOrder, tt, data) end
     local lootLines = {}
     local NONE = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.None
     local UNIT = Enum and Enum.TooltipDataType and Enum.TooltipDataType.Unit
@@ -891,7 +1011,10 @@ local function MaskSecretLines(tt, data)
         if text ~= nil and ns.IsSecret(text) then
             local kind = LINE_NAME[line.type] or tostring(line.type)
             secretTypes[kind] = (secretTypes[kind] or 0) + 1
-            if NAME_LINES[line.type] or lootLines[i] then
+            if questNames[i] then
+                fs:SetText("|cffaaaaaa" .. questNames[i] .. "|r")
+                tipStats.named = (tipStats.named or 0) + 1
+            elseif NAME_LINES[line.type] or lootLines[i] then
                 fs:SetText("|cffaaaaaa(team member)|r")
                 tipStats.masked = (tipStats.masked or 0) + 1
             end
@@ -966,6 +1089,11 @@ function ns.PrivacyTooltipReport(add)
     table.sort(kinds)
     add(("  secret tooltip lines by type: %s  (QuestPlayer / UnitOwner masked: %d)"):format(
         #kinds > 0 and table.concat(kinds, ", ") or "none", tipStats.masked or 0))
+    do
+        local q = MMTDB and MMTDB.questOrder
+        add(("  quest lines on tooltips (group order seen outside instances): in order %s, out of order %s; you first %s, last %s, not listed %s"):format(
+            q and q.ok or 0, q and q.bad or 0, q and q.first or 0, q and q.last or 0, q and q.none or 0))
+    end
     for i, l in ipairs(layouts) do add(("  unit tooltip %d (newest first): %s"):format(i, l)) end
 end
 

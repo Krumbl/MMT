@@ -565,7 +565,8 @@ local meterSaid = setmetatable({}, { __mode = "k" })     -- [fontString] = when 
 local function MeterFill(fs)
     -- only the name: left-aligned (the amount on the right is secret in combat too; the rank isn't)
     local okJ, justify = pcall(fs.GetJustifyH, fs)
-    if not okJ or justify ~= "LEFT" then return nil end
+    -- (the alignment can come back secret: such a string is left alone)
+    if not okJ or ns.IsSecret(justify) or justify ~= "LEFT" then return nil end
     local ok, tf = pcall(fs.GetParent, fs)
     if not ok or type(tf) ~= "table" or not tf.GetParent then return nil end
     local ok2, fill = pcall(tf.GetParent, tf)

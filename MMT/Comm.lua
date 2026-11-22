@@ -732,9 +732,27 @@ if ERR_CHAT_PLAYER_NOT_FOUND_S then
     notFound = "^" .. ERR_CHAT_PLAYER_NOT_FOUND_S:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1"):gsub("%%s", "(.+)") .. "$"
 end
 
+-- "player not found" although the member is online: in our group and
+-- connected, or heard from a moment ago over party / raid / guild. Then only
+-- whispers don't reach it (seen with characters from another server): it stays
+-- online, and answers go over the group channel.
+local function ReachableOtherwise(key)
+    local unit = ns.UnitForMember and ns.UnitForMember(key)
+    if unit and ns.Safe(UnitIsConnected, unit) then return true end
+    local s = ns.status[key]
+    return s and s.last and GetTime() - s.last < 8 and s.channel and s.channel ~= "WHISPER"
+end
+
 function ns.MarkOffline(key)
     local s = ns.status[key]
     if not (s and s.online) then return end
+    if ReachableOtherwise(key) then
+        if not s.noWhisper then
+            ns.Debug("%s: whispers don't reach it ('player not found'), but it is online in the group / guild: stays online", ns.Repr(key))
+        end
+        s.noWhisper = GetTime()
+        return
+    end
     s.online = false
     ns.Debug("%s is offline (player not found): no more whispers until heard from", ns.Repr(key))
     ns.Fire("STATUS_CHANGED")
@@ -763,16 +781,23 @@ if addFilter then addFilter("CHAT_MSG_SYSTEM", SystemFilter) end
 ---------------------------------------------------------------------------
 local hinted = {}
 
-local function HandleXP(key, sender, s)
+local function HandleXP(key, sender, s, channel)
     local old = ns.status[key]
     local wasOnline = old and old.online and (GetTime() - old.last) < ONLINE_TIMEOUT
-    s.last, s.online, s.sender = GetTime(), true, sender
+    s.last, s.online, s.sender, s.channel = GetTime(), true, sender, channel
+    s.noWhisper = old and old.noWhisper
     if s.class and s.class ~= "" then ns.db.team[key].class = s.class end
     ns.status[key] = s
     ns.Fire("XP_RECEIVED", key, sender, s)
     if not wasOnline then
-        -- they just came online: answer so they see us right away
-        Send(ns.BuildXPMessage(), "WHISPER", sender, "NORMAL")
+        -- they just came online: answer so they see us right away (in our
+        -- group over the group channel: whispers may not reach every server)
+        local group = GroupChannel()
+        if group and UnitInGroupByKey(key) then
+            Send(ns.BuildXPMessage(), group, nil, "NORMAL")
+        else
+            Send(ns.BuildXPMessage(), "WHISPER", sender, "NORMAL")
+        end
         ns.Fire("MEMBER_ONLINE", key, sender)
     end
     ns.Fire("STATUS_CHANGED")
@@ -892,7 +917,7 @@ Receive = function(prefix, text, channel, sender)
 
     local s = ParseXP(text)
     if s then
-        if key then HandleXP(key, sender, s) end
+        if key then HandleXP(key, sender, s, channel) end
         return
     end
     if text == "BYE" then

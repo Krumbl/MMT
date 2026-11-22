@@ -164,10 +164,11 @@ function ns.BuildDebugReport()
     for _, key in ipairs(ns.SortedMembers()) do
         local m = ns.db.team[key]
         local s = ns.status[key]
-        add(("key=%s first=%s last=%s class=%s order=%s roles=[%s] online=%s lastSender=%s whisperTo=%s layer=%s phase=%s"):format(
+        add(("key=%s first=%s last=%s class=%s order=%s roles=[%s] online=%s lastSender=%s via=%s whisperTo=%s%s layer=%s phase=%s"):format(
             Repr(key), Repr(m.name), Repr(m.last), tostring(m.class), tostring(m.order),
             table.concat(ns.MemberRoleList(key), ","), tostring(ns.IsOnline(key)),
-            Repr(s and s.sender), Repr(ns.WhisperTarget(key)), tostring(s and s.layerKey), tostring((ns.PhaseOf(key)))))
+            Repr(s and s.sender), tostring(s and s.channel), Repr(ns.WhisperTarget(key)),
+            (s and s.noWhisper) and " (whispers don't reach it)" or "", tostring(s and s.layerKey), tostring((ns.PhaseOf(key)))))
     end
     add("")
 

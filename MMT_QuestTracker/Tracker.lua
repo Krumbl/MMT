@@ -553,12 +553,14 @@ function mod.BuildEntries()
                 elseif ownQ and ownQ.state == 1 then suffix = "  " .. GREEN .. "(Ready for you)|r"
                 elseif ownQ and ownQ.state == -1 then suffix = "  " .. RED .. "(Failed)|r" end
                 local lc = LevelColour(q.level, id)
-                local tag = "[" .. (q.level or "?") .. "]"
+                -- "+": elite / group quest (from the log, a teammate's data or the game's tag info)
+                local plus = (q.elite or mod.IsEliteQuest(id)) and "+" or ""
+                local tag = "[" .. (q.level or "?") .. plus .. "]"
                 -- a timed quest: the time left right after the level, so a long title can't push it
                 -- out of sight (red in the last minute)
                 local text = (lc and (lc .. tag .. "|r") or tag) .. " " .. q.title .. suffix
                 Add({ kind = "quest", key = qkey, text = text, indent = 1, collapsible = not ready,
-                    collapsed = collapsed[qkey], questID = id, ready = ready, title = q.title, level = q.level,
+                    collapsed = collapsed[qkey], questID = id, ready = ready, title = q.title, level = q.level, elite = plus ~= "",
                     zone = zone, mine = entry.mine })
                 -- a timed quest: the time left on a line of its own, like an objective (also when ready;
                 -- red in the last minute)
@@ -644,7 +646,7 @@ local function RowTooltip(row)
     end
     GameTooltip:SetOwner(row, "ANCHOR_LEFT")
     if e.kind == "quest" then
-        GameTooltip:SetText(("[%s] %s"):format(tostring(e.level or "?"), e.title), 1, 0.82, 0)
+        GameTooltip:SetText(("[%s%s] %s"):format(tostring(e.level or "?"), e.elite and "+" or "", e.title), 1, 0.82, 0)
         GameTooltip:AddLine(e.zone, 0.7, 0.7, 0.7)
         -- done: this character from its own quest flags, the others from what they sent (QTC)
         local function Done(key)

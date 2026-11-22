@@ -35,8 +35,11 @@ local function Clean(s)
     return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("[%^~|#\n]", " "))
 end
 
+-- field 6 "E": an elite / group quest (the "+" after the level). Older
+-- versions skip it (it isn't an objective).
 local function EncodeRecord(rec)
     local parts = { rec.id, rec.level or 0, rec.state or 0, Clean(rec.zone), Clean(rec.title) }
+    if rec.elite then parts[#parts + 1] = "E" end
     for _, o in ipairs(rec.obj or {}) do
         -- flags: 1 = done, 2 = counted from the bags by MMT (the game's count was lower)
         local flags = (o.done and 1 or 0) + (o.counted and 2 or 0)
@@ -52,6 +55,7 @@ local function DecodeRecord(s)
     if not id then return nil end
     local rec = { id = id, level = tonumber(f[2]) or 0, state = tonumber(f[3]) or 0, zone = f[4] or "", title = f[5] or "", obj = {} }
     for i = 6, #f do
+        if f[i] == "E" then rec.elite = true end
         local have, need, flags, text = f[i]:match("^(%-?%d+),(%-?%d+),([0-3]),(.*)$")
         if have then
             flags = tonumber(flags)
@@ -181,6 +185,34 @@ local function IsWatched(questID, logIndex)
     return true
 end
 
+-- elite or group quest: the "+" after the level, as the game's quest log
+-- shows it. Elite from the quest's tag info (isElite, or the "Elite" tag; the
+-- same check as HUF's quest log), group from the suggested group size.
+-- Cached per quest once the game answered.
+local eliteCache = {}
+function mod.IsEliteQuest(id, group)
+    if group and group > 1 then return true end
+    if not id then return false end
+    if eliteCache[id] ~= nil then return eliteCache[id] end
+    local elite, known = false, false
+    local function IsEliteTag(name)
+        return type(name) == "string" and not MMT.IsSecret(name)
+            and ((ELITE and name == ELITE) or name:lower() == "elite")
+    end
+    if C_QuestLog and C_QuestLog.GetQuestTagInfo then
+        local ok, info = pcall(C_QuestLog.GetQuestTagInfo, id)
+        if ok and type(info) == "table" then
+            known = true
+            elite = info.isElite == true or IsEliteTag(info.tagName)
+        end
+    elseif GetQuestTagInfo then
+        local ok, _, tagName = pcall(GetQuestTagInfo, id)
+        if ok then known, elite = true, IsEliteTag(tagName) end
+    end
+    if known then eliteCache[id] = elite end
+    return elite
+end
+
 -- returns quests { [id] = rec }, order { id, ... }, watched { [id] = true }
 function mod.ReadQuestLog()
     local quests, order, watched = {}, {}, {}
@@ -194,7 +226,8 @@ function mod.ReadQuestLog()
                 elseif info.questID and info.questID > 0 and not info.isHidden and not info.isTask and not info.isBounty then
                     local id = info.questID
                     quests[id] = { id = id, level = info.level or 0, zone = zone, title = info.title or ("Quest " .. id),
-                        state = StateOf(id, info.isComplete), obj = Objectives(id, i) }
+                        state = StateOf(id, info.isComplete), obj = Objectives(id, i),
+                        elite = mod.IsEliteQuest(id, tonumber(info.suggestedGroup)) or nil }
                     order[#order + 1] = id
                     if IsWatched(id, i) then watched[id] = true end
                 end
@@ -202,12 +235,13 @@ function mod.ReadQuestLog()
         end
     elseif GetNumQuestLogEntries then
         for i = 1, (GetNumQuestLogEntries() or 0) do
-            local title, level, _, isHeader, _, isComplete, _, questID = GetQuestLogTitle(i)
+            local title, level, group, isHeader, _, isComplete, _, questID = GetQuestLogTitle(i)
             if isHeader then
                 zone = title or ""
             elseif title and questID then
                 quests[questID] = { id = questID, level = level or 0, zone = zone, title = title,
-                    state = StateOf(questID, isComplete), obj = Objectives(questID, i) }
+                    state = StateOf(questID, isComplete), obj = Objectives(questID, i),
+                    elite = mod.IsEliteQuest(questID, tonumber(group)) or nil }
                 order[#order + 1] = questID
                 if IsWatched(questID, i) then watched[questID] = true end
             end

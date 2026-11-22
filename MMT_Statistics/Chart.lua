@@ -288,6 +288,7 @@ function mod.CreateChart(parent, width, height)
         local most2 = 0
         for _, d in ipairs(days) do most2 = math.max(most2, (d.e or 0) + (d.s or 0)) end
         local k = 0
+        local labels, widest = {}, 0
         for i, d in ipairs(days) do
             local x = self.padL + (n > 1 and (i - 1) / (n - 1) or 0.5) * self.plotW
             x = math.max(self.padL + w / 2, math.min(self.padL + self.plotW - w / 2, x))
@@ -307,18 +308,26 @@ function mod.CreateChart(parent, width, height)
                     t:SetText(Amount(v, part[5]))
                     t:ClearAllPoints()
                     t:SetPoint("CENTER", b, "CENTER", 0, 0)
-                    -- fits: the measured width when the game gives one, else about
-                    -- 5.5 px per character at size 9
+                    -- the measured width when the game gives one, else about 5.5 px
+                    -- per character at size 9
                     local tw = tonumber(t:GetStringWidth()) or 0
                     if tw <= 0 or tw > 200 then tw = #t:GetText() * 5.5 end
-                    local fits = tw + 2 <= w and h >= 9
-                    t:SetShown(fits)
-                    if mod.M and mod.M.Debug and k <= 2 then
-                        mod.M:Debug("gold chart label %q: text %.1f px, bar %.1f x %.1f -> %s", t:GetText(), tw, w, h, tostring(fits))
-                    end
+                    widest = math.max(widest, tw)
+                    labels[#labels + 1] = { t = t, i = i, h = h }
                     base = base + h
                 end
             end
+        end
+        -- a label may be wider than its bar (over the gaps beside it): every
+        -- step-th day gets its amounts, counted back from the newest day, so
+        -- neighbouring labels never overlap; bars too low for the text: tooltip
+        local spacing = self.plotW / math.max(1, n - 1)   -- between two day columns
+        local step = math.max(1, math.ceil((widest + 4) / math.max(1, spacing)))
+        for _, l in ipairs(labels) do
+            l.t:SetShown((n - l.i) % step == 0 and l.h >= 9)
+        end
+        if mod.M and mod.M.Debug then
+            mod.M:Debug("gold chart labels: widest %.1f px, days %.1f px apart -> every %d. day", widest, spacing, step)
         end
     end
 

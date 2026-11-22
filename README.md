@@ -475,8 +475,8 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   tooltip, and by what you gathered before.
 - **Quest Tracker** (module): replaces the Blizzard quest tracker with a team tracker:
   Zone > [Level] Quest > Objective > one row per team member with their progress
-  (elite and group quests show a "+" after the level, e.g. [32+], as in the game's quest log)
   ("3/8", "done", "completed" when that character already turned it in, "not on quest").
+  Elite and group quests show a "+" after the level ([32+]), as in the game's quest log.
   A quest done on every character that has it shows only its name with "(Ready)", so
   the tracker gets shorter the more quests are ready to turn in ("(Ready for you)" while
   others still work on it). The same for a single objective: one of several monsters to

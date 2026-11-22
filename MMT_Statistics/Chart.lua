@@ -257,7 +257,8 @@ function mod.CreateChart(parent, width, height)
     local function BarLabel(i)
         local t = c.barLabels[i]
         if not t then
-            t = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            t = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            t:SetDrawLayer("OVERLAY", 7)
             local font = t:GetFont()
             if font then t:SetFont(font, 9, "") end
             t:SetShadowOffset(1, -1)
@@ -306,7 +307,15 @@ function mod.CreateChart(parent, width, height)
                     t:SetText(Amount(v, part[5]))
                     t:ClearAllPoints()
                     t:SetPoint("CENTER", b, "CENTER", 0, 0)
-                    t:SetShown(t:GetStringWidth() + 2 <= w and t:GetStringHeight() <= h + 1)
+                    -- fits: the measured width when the game gives one, else about
+                    -- 5.5 px per character at size 9
+                    local tw = tonumber(t:GetStringWidth()) or 0
+                    if tw <= 0 or tw > 200 then tw = #t:GetText() * 5.5 end
+                    local fits = tw + 2 <= w and h >= 9
+                    t:SetShown(fits)
+                    if mod.M and mod.M.Debug and k <= 2 then
+                        mod.M:Debug("gold chart label %q: text %.1f px, bar %.1f x %.1f -> %s", t:GetText(), tw, w, h, tostring(fits))
+                    end
                     base = base + h
                 end
             end

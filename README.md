@@ -301,6 +301,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     have been reset while you were logged out): the visit continues and MMT asks;
     "New instance" starts a new row from the login (counts toward the hourly limit). When
     the game shows the instance copy ID and it changed, that is decided without asking.
+    When the group leader resets the instances, it tells the team (SIR); members in its
+    group who enter that instance within a minute, without changing the group, get a new
+    row without being asked.
     Right-click a visit to remove it (e.g. entered and left at once; not the one you are
     in): it still counts for the hourly instance limit. Chat
     notes on entering: new or the same instance, and how many instances the account

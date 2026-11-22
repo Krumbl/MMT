@@ -111,6 +111,8 @@ function mod.RemoveRun(key, r)
     return false
 end
 local lastLand   -- the last zone outside instances (where the entrance is)
+local RESET_HEARD_FOR = 60   -- seconds: entering after the leader's reset is a new instance
+local resetHeard       -- { name, t }: the group leader (team) reset this instance
 local reloading         -- PLAYER_ENTERING_WORLD said: UI reload
 local sessionZoneRead   -- the zone was read once since this UI loaded
 local said = {}   -- debug: each instance-copy reason once per instance entry
@@ -141,6 +143,13 @@ local function UpdateZone()
             -- (relog): the same one too, but it may have been reset while logged
             -- out, so the player is asked ("New instance" splits the row).
             local last = c.runs[#c.runs]
+            -- the group leader reset it a moment ago while we were in the group: new
+            local heard = resetHeard and resetHeard.name == name and time() - resetHeard.t <= RESET_HEARD_FOR
+            if heard then
+                resetHeard = nil
+                if last and last.map == map then last.reset = true end
+                M:Debug("instance: %s was reset by the group leader: new instance", tostring(name))
+            end
             local sameMap = last and last.map == map and last.leave and not last.reset
             local firstRead = not sessionZoneRead
             if sameMap and firstRead and reloading and (time() - last.leave) < 3600 then
@@ -172,7 +181,8 @@ local function UpdateZone()
                 mod.journalPick = nil   -- the Dungeon Journal shows this instance again
                 local ask = sameMap and time() - last.leave < ASK_GAP and M.db.askSameInstance ~= false
                 mod.InstanceNote(("Entered %s: %s (%s). %s"):format(tostring(name),
-                    ask and "a new instance unless you answer \"Same instance\"" or "new instance",
+                    ask and "a new instance unless you answer \"Same instance\""
+                        or (heard and "new instance (the group leader reset it)" or "new instance"),
                     mod.RunLabel(run), mod.HourText()))
                 if ask then
                     local new = run
@@ -384,7 +394,30 @@ M:On("CHAT_MSG_SYSTEM", function(msg)
         if r ~= run and r.n == name then r.reset = true end
     end
     M:Debug("instance reset: %s", name)
+    -- the group leader tells the team: the members present enter a new instance
+    if IsInGroup() and UnitIsGroupLeader("player") then
+        MMT.SendToTeam("SIR:" .. name, true, "ALERT")
+    end
 end)
+
+-- SIR:<instance name>: the group leader (a team member) reset that instance;
+-- only for members in its group (present at the reset); entering it within a
+-- minute, without changing the group, is a new instance without asking
+M:Listen("TEAM_MESSAGE", function(key, sender, text)
+    local name = text:match("^SIR:(.+)$")
+    if not name or MMT.IsSelf(key) then return end
+    local unit = MMT.UnitForMember(key)
+    if not unit or not UnitIsGroupLeader(unit) then return end
+    resetHeard = { name = name, t = time() }
+    M:Debug("instance reset by the group leader %s: %s", MMT.Repr(key), name)
+end)
+-- another group: the reset no longer applies
+for _, e in ipairs({ "GROUP_JOINED", "GROUP_LEFT" }) do
+    M:On(e, function()
+        if resetHeard then M:Debug("instance reset hint dropped (group changed)") end
+        resetHeard = nil
+    end)
+end
 
 ---------------------------------------------------------------------------
 -- Time

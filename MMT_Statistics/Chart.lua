@@ -251,9 +251,30 @@ function mod.CreateChart(parent, width, height)
         end
         return b
     end
+    -- the amount inside each bar: "+12" / "-3" (gold, no decimals; "+<1" below
+    -- one gold), shown when it fits into the bar
+    c.barLabels = {}
+    local function BarLabel(i)
+        local t = c.barLabels[i]
+        if not t then
+            t = c:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            local font = t:GetFont()
+            if font then t:SetFont(font, 9, "") end
+            t:SetShadowOffset(1, -1)
+            t:SetShadowColor(0, 0, 0, 1)
+            c.barLabels[i] = t
+        end
+        return t
+    end
+    local function Amount(v, sign)
+        local g = math.floor(v / GOLD + 0.5)
+        return sign .. (g < 1 and "<1" or Group(tostring(g)))
+    end
+
     function c:SetFlows(days, format)
         self.flows, self.flowFormat = days, format
         for _, b in ipairs(self.bars) do b:Hide() end
+        for _, t in ipairs(self.barLabels) do t:Hide() end
         if not days then return end
         local most = 0
         for _, d in ipairs(days) do most = math.max(most, d.e or 0, d.s or 0) end
@@ -270,7 +291,7 @@ function mod.CreateChart(parent, width, height)
             local x = self.padL + (n > 1 and (i - 1) / (n - 1) or 0.5) * self.plotW
             x = math.max(self.padL + w / 2, math.min(self.padL + self.plotW - w / 2, x))
             local base = 0
-            for _, part in ipairs({ { d.e or 0, 0.35, 0.85, 0.35 }, { d.s or 0, 0.9, 0.35, 0.35 } }) do
+            for _, part in ipairs({ { d.e or 0, 0.35, 0.85, 0.35, "+" }, { d.s or 0, 0.9, 0.35, 0.35, "-" } }) do
                 local v = part[1]
                 if v > 0 then
                     k = k + 1
@@ -281,6 +302,11 @@ function mod.CreateChart(parent, width, height)
                     b:ClearAllPoints()
                     b:SetPoint("BOTTOM", self, "BOTTOMLEFT", x, PAD_B + base)
                     b:Show()
+                    local t = BarLabel(k)
+                    t:SetText(Amount(v, part[5]))
+                    t:ClearAllPoints()
+                    t:SetPoint("CENTER", b, "CENTER", 0, 0)
+                    t:SetShown(t:GetStringWidth() + 2 <= w and t:GetStringHeight() <= h + 1)
                     base = base + h
                 end
             end

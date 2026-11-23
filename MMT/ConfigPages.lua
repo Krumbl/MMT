@@ -784,7 +784,7 @@ ns.RegisterPage("roles", "Roles", function(page)
     local cCycle = UI.Dropdown(it, RIGHT_IN - 52, "Item group", groups,
         function() return itemGroup end, function(v) itemGroup = v end)
     R:Add(cCycle, 0)
-    UI.Tooltip(cCycle, "Item group", "Ready-made groups by item category, e.g. Cloth (Linen, Wool, Silk, Mageweave, Runecloth and their bolts), Herbs, Potions, Food & drink or Reagents.")
+    UI.Tooltip(cCycle, "Item group", "Ready-made groups by item category, e.g. Cloth (Linen, Wool, Silk, Mageweave, Runecloth and their bolts), Herbs, Potions, Food & drink, Reagents or Lockboxes (the ones a rogue opens: Bronze to Eternium Lockboxes and the Junkboxes).")
     local cAdd = UI.Button(it, 44, "Add", function() AddRule({ type = "group", group = itemGroup }) end)
     cAdd:SetPoint("LEFT", cCycle, "RIGHT", 8, 0)
     R:Space(UI.ROW + 4)

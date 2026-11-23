@@ -352,6 +352,12 @@ ns.ITEM_GROUPS = {
     { id = "scrolls", name = "Scrolls", class = 0, subs = { 4 } },
     { id = "enhancements", name = "Item enhancements", class = 0, subs = { 6 } },
     { header = "Other" },
+    -- lockboxes a rogue opens with Lockpicking (no category of their own: by ID,
+    -- plus "Lockbox" / "Junkbox" in the name for boxes Forever added)
+    { id = "lockboxes", name = "Lockboxes",
+      ids = Set({ 4632, 4633, 4634, 4636, 4637, 4638, 5758, 5759, 5760,   -- Ornate Bronze .. Eternium Lockbox
+                  16882, 16883, 16884, 16885 }),                           -- Battered / Worn / Sturdy / Heavy Junkbox
+      names = { "lockbox", "junkbox" } },
     { id = "reagents", name = "Reagents", class = 5 },
     { id = "recipes", name = "Recipes", class = 9 },
     { id = "containers", name = "Bags", class = 1 },
@@ -370,10 +376,16 @@ for _, g in ipairs(ns.ITEM_GROUPS) do
 end
 function ns.ItemGroup(id) return groupsById[id] end
 
-function ns.InGroup(group, itemID, classID, subClassID)
+function ns.InGroup(group, itemID, classID, subClassID, name)
     if not group then return false end
     if group.ids and itemID and group.ids[itemID] then return true end
-    if classID ~= group.class then return false end
+    if group.names and type(name) == "string" and not ns.IsSecret(name) then
+        local lower = name:lower()
+        for _, part in ipairs(group.names) do
+            if lower:find(part, 1, true) then return true end
+        end
+    end
+    if not group.class or classID ~= group.class then return false end
     return not group.subSet or (subClassID ~= nil and group.subSet[subClassID] == true)
 end
 
@@ -400,7 +412,7 @@ function ns.RuleMatches(rule, itemID, name, quality, classID, bindType, subClass
     elseif t == "class" then
         return classID == rule.classID
     elseif t == "group" then
-        return ns.InGroup(groupsById[rule.group], itemID, classID, subClassID)
+        return ns.InGroup(groupsById[rule.group], itemID, classID, subClassID, name)
     end
     return false
 end

@@ -26,6 +26,7 @@ local M = MMT.NewModule({
     title = "Statistics",
     description = "Gold of every character and account over 60 days, NPCs killed and what killed you, quests.",
     sync = true,
+    positions = { "livePoint", "liveDock", "liveDockWin", "sessionKillsPos" },   -- also sent with the core profile sync
     syncExclude = { "chartScope", "killScope", "exportKind", "exportScope", "exportSep", "questScope", "levelScope", "zoneScope", "zoneView", "killKind", "killZone", "profScope", "profFilter" },
     defaults = {
         trackGold   = true,

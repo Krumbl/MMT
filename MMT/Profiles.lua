@@ -613,7 +613,8 @@ function ns.ParseExport(str)
     if type(t.name) == "string" and type(t.data) == "table" then
         return t.name, t.data, type(t.modules) == "table" and t.modules or nil,
             type(t.moduleSettings) == "table" and t.moduleSettings or nil,
-            type(t.look) == "table" and t.look or nil
+            type(t.look) == "table" and t.look or nil,
+            type(t.positions) == "table" and t.positions or nil
     end
     if t.team or t.xp then return "Imported", t end -- 2.0.0 test build strings
     return nil
@@ -632,7 +633,8 @@ function ns.ImportProfile(name, data, activate)
 end
 
 -- Core settings only (team sync): the active profile without the settings
--- of modules. Window positions (XP, distance) are part of it.
+-- of modules. Window positions (XP, distance) are part of it, and the window
+-- positions of the loaded modules (their positions keys) go along.
 -- withModules: also the settings of the modules that share theirs (sync = true);
 -- the team sync adds them when every recipient is in the guild (guild channel)
 function ns.ExportCoreSettings(withModules)
@@ -649,7 +651,7 @@ function ns.ExportCoreSettings(withModules)
     -- (applied, not stored in the profile)
     return "MMT1:" .. ns.Serialize({ name = ns.CurrentProfileName(), data = data, core = true,
         modules = ns.ModuleStates and ns.ModuleStates() or nil, moduleSettings = moduleSettings,
-        look = ns.ExportLook() })
+        look = ns.ExportLook(), positions = ns.ModulePositions and ns.ModulePositions() or nil })
 end
 
 -- the settings window's look (Help > Appearance) and scale: kept per account in MMTDB,

@@ -54,7 +54,8 @@ local M = MMT.NewModule({
     description = "One line for Manage modules.",
     defaults = { greeting = true },   -- per profile, read/write M.db
     sync = true,                      -- optional: share M.db with the team
-    syncExclude = { "point" },        -- optional: keys that stay per client
+    syncExclude = { "lastTab" },      -- optional: keys that stay per client
+    positions = { "point" },          -- optional: window positions, also sent with /mmt sync
 })
 
 -- M.db     settings in the active profile (defaults merged in)

@@ -53,7 +53,8 @@ local M = MMT.NewModule({
     description = "One line for the Modules page.",
     defaults = { greeting = true },   -- per profile, read/write M.db
     sync = true,                      -- optional: "Sync to team" button
-    syncExclude = { "point" },        -- optional: keys that stay per client
+    syncExclude = { "lastTab" },      -- optional: keys that stay per client
+    positions = { "point" },          -- optional: window positions, also sent with /mmt sync
 })
 
 M.OnEnable = function(self) end   -- switched on (also at login)

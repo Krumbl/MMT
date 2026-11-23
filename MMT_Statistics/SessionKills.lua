@@ -358,6 +358,14 @@ function mod.SessionKillsReport(add)
         mlFrom and MMT.Repr(mlFrom.key) or "-", sessionId))
 end
 
+-- the window's saved place (also after a profile sync with another position)
+function mod.PlaceSessionKills()
+    if not win then return end
+    win:ClearAllPoints()
+    local pos = M.db.sessionKillsPos
+    if pos then win:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else win:SetPoint("CENTER", 0, 80) end
+end
+
 local function Build()
     if win then return win end
     local UI = MMT.UI
@@ -374,8 +382,7 @@ local function Build()
         local p, _, rp, x, y = self:GetPoint()
         M.db.sessionKillsPos = { p, rp, x, y }
     end)
-    local pos = M.db.sessionKillsPos
-    if pos then win:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else win:SetPoint("CENTER", 0, 80) end
+    mod.PlaceSessionKills()
     UI.Fill(win, 0.05, 0.05, 0.06, 0.94)
     UI.Border(win, A[1], A[2], A[3], 0.45)
     if UI.CloseOnEscape then UI.CloseOnEscape(win) end
@@ -461,4 +468,13 @@ end
 function mod.ToggleSessionKills()
     Build()
     if win:IsShown() then win:Hide() else win:Show() mod.RedrawSessionKills() end
+end
+
+-- profile switch / synced positions: the window goes to its saved place
+do
+    local old = M.OnProfileChanged
+    M.OnProfileChanged = function(...)
+        if old then old(...) end
+        mod.PlaceSessionKills()
+    end
 end

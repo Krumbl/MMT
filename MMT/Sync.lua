@@ -654,7 +654,7 @@ local function Complete(t)
         return
     end
 
-    local name, data, states, moduleSettings, look = ns.ParseExport(payload)
+    local name, data, states, moduleSettings, look, positions = ns.ParseExport(payload)
     if not name then
         ns.Print("%sCould not read|r the settings from %s.", BAD, Name(t.who))
         Answer(t, "BAD")
@@ -664,11 +664,12 @@ local function Complete(t)
     ns.Print("%sReceived|r the %s from %s completely.", OK, label, Name(t.who))
     Answer(t, "RECV")
     -- own dialog instead of Blizzard's StaticPopup (taint)
-    AskOrAccept(("%s wants to share the MMT core settings (profile \"%s\") with you: team, roles, Info window incl. position, automations%s%s.\n\nAccepting overwrites them in a profile with that name and makes it your active profile.%s"):format(
+    AskOrAccept(("%s wants to share the MMT core settings (profile \"%s\") with you: team, roles, Info window incl. position, automations%s%s%s.\n\nAccepting overwrites them in a profile with that name and makes it your active profile.%s"):format(
             t.who, name, moduleSettings and ", which modules are on or off, and the settings of the modules"
                 or (states and ", which modules are on or off" or ""),
+            positions and ", the window positions of the modules" or "",
             look and ", and the look and size of the settings window (Help > Appearance)" or "",
-            moduleSettings and "" or " Module settings stay as they are."),
+            moduleSettings and "" or (positions and " Other module settings stay as they are." or " Module settings stay as they are.")),
         ("Core settings from %s"):format(Name(t.who)),
         function()
             local hidBefore = PrivacyNow()
@@ -692,6 +693,10 @@ local function Complete(t)
                         if ns.StoreModuleSettings(modName, settings) then n = n + 1 end
                     end
                     ns.Print("Settings of %d %s from %s applied.", n, n == 1 and "module" or "modules", Name(t.who))
+                end
+                if positions then
+                    local n = ns.ApplyModulePositions(positions)
+                    if n > 0 then ns.Print("Window positions of %d %s from %s applied.", n, n == 1 and "module" or "modules", Name(t.who)) end
                 end
                 if needReload then
                     Answer(t, "ACCEPT:R")

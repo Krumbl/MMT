@@ -12,8 +12,12 @@
 -- OnEnable, OnDisable, OnProfileChanged, Page(m, frame), Report(m, add), sync } and gets:
 --   sync = true            share m.db with the team: "Sync to team" button
 --                          on its page and /mmt sync <name> (m.store is never sent)
---   syncExclude = { keys } settings in m.db that stay on each client (window
---                          positions, per-machine options); not sent, not overwritten
+--   syncExclude = { keys } settings in m.db that stay on each client (per-machine
+--                          options); not sent, not overwritten
+--   positions = { keys }   settings in m.db that hold window positions (and
+--                          docking): they also travel with the core profile sync
+--                          (/mmt sync), for every loaded module, sync = true or not;
+--                          OnProfileChanged places the windows again
 --   OnSyncReceived(m, from) optional: runs after the team's settings were applied
 --                          (OnProfileChanged runs before it, as on a profile switch)
 --   m:SyncToTeam()         sends the settings (what the button does)
@@ -115,6 +119,51 @@ function Module:SyncData()
     local data = ns.CopyTable(self.db)
     for _, k in ipairs(self.syncExclude or {}) do data[k] = nil end
     return data
+end
+
+-- the window positions of the loaded modules (m.positions keys), for the core sync
+function ns.ModulePositions()
+    local out
+    for _, m in ipairs(ns.moduleList) do
+        if m.positions and m.db then
+            local p
+            for _, k in ipairs(m.positions) do
+                if m.db[k] ~= nil then p = p or {}; p[k] = ns.CopyTable(m.db[k]) end
+            end
+            if p then out = out or {}; out[m.name] = p end
+        end
+    end
+    return out
+end
+
+-- applies synced window positions into the active profile; loaded modules
+-- place their windows again. Returns how many modules got positions.
+function ns.ApplyModulePositions(positions)
+    if type(positions) ~= "table" then return 0 end
+    ns.db.modules = ns.db.modules or {}
+    local n = 0
+    for name, p in pairs(positions) do
+        if type(name) == "string" and type(p) == "table" then
+            local m = ns.modules[name]
+            local allowed
+            if m and m.positions then
+                allowed = {}
+                for _, k in ipairs(m.positions) do allowed[k] = true end
+            end
+            ns.db.modules[name] = ns.db.modules[name] or {}
+            local target = ns.db.modules[name]
+            for k, v in pairs(p) do
+                if not allowed or allowed[k] then target[k] = ns.CopyTable(v) end
+            end
+            n = n + 1
+            if m and m.db and m.enabled and m.OnProfileChanged then
+                m.db = target
+                local ok, err = pcall(m.OnProfileChanged, m)
+                if not ok then ns.Debug("module %s OnProfileChanged error: %s", m.name, tostring(err)) end
+            end
+        end
+    end
+    return n
 end
 
 local function Bind(m)

@@ -5,7 +5,7 @@
 # MMT - Manage My Team
 
 A lean multiboxing assistant for World of Warcraft: Forever (interface 16001).
-Version 1.2.27: core addon (MMT) plus optional modules (MMT_*).
+Version 1.2.28: core addon (MMT) plus optional modules (MMT_*).
 To install, download the repository (Code > Download ZIP) and copy the four `MMT*` folders.
 
 ## Install
@@ -43,7 +43,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
 - Settings sync for modules: add `sync = true` to `MMT.NewModule{...}` and the module gets
   a "Sync to team" button in the bottom right of its settings page and `/mmt sync <name>`.
   Only `M.db` is sent (never `M.store`). Optional: `syncExclude = { "key", ... }` for
-  settings that stay on each client, `M.OnSyncReceived(m, from)` after settings arrived,
+  settings that stay on each client, `positions = { "point", ... }` for the keys holding
+  window positions (they also travel with the core profile sync `/mmt sync`; the module's
+  `OnProfileChanged` places the windows again), `M.OnSyncReceived(m, from)` after settings arrived,
   `M:SyncToTeam()` and `M:SyncButton(frame)` for windows of your own. Example on /mmt > Help.
 - A new module folder needs a full game restart (not just /reload) before the game lists it.
 - Key bindings: Esc > Options > Keybindings > "MMT (Manage My Team)" holds every MMT key,
@@ -623,7 +625,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   empty profile, MMT asks whether to switch the modules back to their default (on or off) too.
 - **Sync to team**: `/mmt sync` (or the blue button in the bottom right of Profiles) sends
   the core settings of the active profile: team, roles, Info window incl. its position,
-  automations, distance window. Module settings are not included. Item Compare, Loot
+  automations, distance window, and the window positions of the modules (quest tracker,
+  item bar, live tracker incl. docking, Session Kill-Details). Other module settings are
+  not included. Item Compare, Loot
   Distribution and Quest Tracker have their own button and `/mmt sync <module>`
   (e.g. `/mmt sync questtracker`), which sends only that module's settings.
   Messages are paced to stay under the game's addon message limit. The sender sees who

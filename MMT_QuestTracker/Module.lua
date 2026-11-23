@@ -24,6 +24,7 @@ local M = MMT.NewModule({
     description = "Team quest tracker (zone, quest, objective, progress per team member) and quest automation.",
     sync = true,   -- /mmt sync <module> and the Sync button share M.db with the team
     syncExclude = { "movedFromCore" },   -- internal migration flag stays on each client
+    positions = { "point" },   -- also sent with the core profile sync
     defaults = {
         -- automation (the first five were in Core > Automations > Quests)
         acceptNPC       = true,

@@ -46,6 +46,7 @@ local M = MMT.NewModule({
         levelScope  = "CHAR",   -- Leveling tab: CHAR | char:<key> | ACCOUNT (average)
         zoneScope   = "CHAR",   -- Zones tab: CHAR | ACCOUNT | char:<key>
         zoneView    = "ZONES",  -- ZONES | INSTANCES
+        instJunk    = true,     -- Instances: Money includes the vendor trash looted
         trackProfessions = true, -- profession skill-ups (Professions.lua), this account only
         profScope   = "CHAR",   -- Professions tab: CHAR | ACCOUNT | char:<key>
         profFilter  = "ALL",    -- Professions tab: ALL | profession name

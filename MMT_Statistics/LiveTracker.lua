@@ -124,7 +124,9 @@ mod.LiveMeterLook, mod.LiveDocked = MeterLook, Docked
 ---------------------------------------------------------------------------
 -- Session
 ---------------------------------------------------------------------------
-local session = { start = GetTime(), xp = 0 }
+local session = { start = GetTime(), xp = 0, junk = 0 }
+-- vendor trash looted this session (Leveling.lua: grey items' sell value)
+function mod.OnJunkLooted(value) session.junk = (session.junk or 0) + value end
 local lastLevel, lastXP, lastMax
 
 local function Kills()
@@ -135,6 +137,7 @@ end
 local function StartSession()
     session.start = GetTime()
     session.xp = 0
+    session.junk = 0
     session.money = Num(GetMoney)
     session.kills = Kills()
     lastLevel, lastXP, lastMax = Num(UnitLevel, "player"), Num(UnitXP, "player"), Num(UnitXPMax, "player")
@@ -307,9 +310,9 @@ local function Build()
     lines[2].l:SetText("On this level")
     lines[3].l:SetText("XP")
 
-    -- table: 4 rows (head, XP, Gold, Kills) x 3 columns
+    -- table: 5 rows (head, XP, Gold, Vendor trash, Kills) x 3 columns
     cells = {}
-    for r = 1, 4 do
+    for r = 1, 5 do
         cells[r] = {}
         for c = 1, 3 do
             local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -324,7 +327,8 @@ local function Build()
     cells[1][3]:SetText("per hour")
     cells[2][1]:SetText("XP")
     cells[3][1]:SetText("Gold")
-    cells[4][1]:SetText("Kills")
+    cells[4][1]:SetText("Vendor trash")
+    cells[5][1]:SetText("Kills")
     f.sep = f:CreateTexture(nil, "BORDER")
     f.sep:SetHeight(1)
     f.sep:SetColorTexture(1, 1, 1, 0.12)
@@ -472,7 +476,7 @@ DoLayout = function()
     local h = size + 3
     Font(f.title, 1, true)
     for _, ln in ipairs(lines) do Font(ln.l) Font(ln.v) end
-    for r = 1, 4 do for c = 1, 3 do Font(cells[r][c]) end end
+    for r = 1, 5 do for c = 1, 3 do Font(cells[r][c]) end end
     Font(f.close.text)
     Font(f.reset.text, 0.9)
     Font(f.details.text, 0.9)
@@ -480,7 +484,7 @@ DoLayout = function()
 
     -- widths from the font size (values change, the window should not jump);
     -- docked: the meter's width, shared out the same way
-    local w1, w2, w3 = size * 5, size * 7, size * 7
+    local w1, w2, w3 = size * 6.5, size * 7, size * 7   -- room for "Vendor trash"
     local width = PAD * 2 + w1 + w2 + w3
     if Docked() and Wide() then
         local meter = MeterFrame()
@@ -488,8 +492,8 @@ DoLayout = function()
         if mw > 40 then
             width = mw
             local inner = width - PAD * 2
-            w1 = math.floor(inner * 5 / 19)
-            w2 = math.floor(inner * 7 / 19)
+            w1 = math.floor(inner * 6.5 / 20.5)
+            w2 = math.floor(inner * 7 / 20.5)
             w3 = inner - w1 - w2
         end
     end
@@ -523,7 +527,7 @@ DoLayout = function()
         end
     end
     y = y - 3
-    for r = 1, 4 do
+    for r = 1, 5 do
         local x = PAD
         for c, w in ipairs({ w1, w2, w3 }) do
             local fs = cells[r][c]
@@ -602,8 +606,12 @@ function mod.RedrawLiveTracker(now)
     cells[2][3]:SetText(xpH and Thousands(xpH) or "-")
     cells[3][2]:SetText(SignedMoney(money))
     cells[3][3]:SetText(moneyH and SignedMoney(math.floor(moneyH)) or "-")
-    cells[4][2]:SetText(Thousands(kills))
-    cells[4][3]:SetText(killsH and ("%.1f"):format(killsH) or "-")
+    local junk = session.junk or 0
+    local junkH = PerHour(junk)
+    cells[4][2]:SetText(mod.Money(junk))
+    cells[4][3]:SetText(junkH and mod.Money(math.floor(junkH)) or "-")
+    cells[5][2]:SetText(Thousands(kills))
+    cells[5][3]:SetText(killsH and ("%.1f"):format(killsH) or "-")
 end
 
 -- shown or hidden by the setting (and with the module); placed on the meter when docked
@@ -709,7 +717,7 @@ M.Report = function(m, add)
     for _, ln in ipairs(lines) do
         if not ln.hidden then out[#out + 1] = tostring(ln.l:GetText()) .. "=" .. tostring(ln.v:GetText()) end
     end
-    for r = 2, 4 do
+    for r = 2, 5 do
         out[#out + 1] = ("%s=%s/%s per h"):format(tostring(cells[r][1]:GetText()), tostring(cells[r][2]:GetText()), tostring(cells[r][3]:GetText()))
     end
     add(("  live tracker: %s  (look %s%s, dock %s%s)"):format(table.concat(out, "  "), tostring(M.db.liveLook),

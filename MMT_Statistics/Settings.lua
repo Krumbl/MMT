@@ -912,22 +912,28 @@ M.Page = function(_, page)
     for i, t in ipairs({ { "time", "favorite zone (time spent)" }, { "kills", "most NPC kills in" } }) do
         local tile = CreateFrame("Frame", nil, zp)
         local w = math.floor((PAGE_W - 12) / 2)
-        tile:SetSize(w, 70)
+        tile:SetSize(w, 48)
         tile:SetPoint("TOPLEFT", zp, "TOPLEFT", (i - 1) * (w + 12), zy)
         UI.Fill(tile, 1, 1, 1, 0.03)
         UI.Border(tile, 1, 1, 1, 0.08)
         tile.value = UI.Label(tile, "-", "GameFontHighlightLarge")
-        pcall(tile.value.SetFont, tile.value, STANDARD_TEXT_FONT, 20, "")
-        tile.value:SetPoint("TOP", 0, -12)
+        pcall(tile.value.SetFont, tile.value, STANDARD_TEXT_FONT, 18, "")
+        tile.value:SetPoint("TOP", 0, -7)
         tile.value:SetWidth(w - 16)
         tile.value:SetWordWrap(false)
         tile.value:SetTextColor(A[1], A[2], A[3])
         tile.label = UI.Label(tile, t[2])
-        tile.label:SetPoint("TOP", tile.value, "BOTTOM", 0, -6)
+        tile.label:SetPoint("TOP", tile.value, "BOTTOM", 0, -3)
         tile.label:SetTextColor(0.6, 0.6, 0.6)
         favTiles[t[1]] = tile
     end
-    zy = zy - 70 - 14
+    zy = zy - 48 - 4
+    -- Instances: count the vendor trash looted (grey items' sell value) in Money
+    local junkCheck = UI.Check(zp, 230, "Include vendor trash in Money",
+        function() return M.db.instJunk ~= false end, function(v) M.db.instJunk = v; mod.Redraw() end,
+        "Money also counts the sell value of the grey items looted during the visit (raw money + vendor trash). Off: only the money looted.")
+    junkCheck:SetPoint("TOPRIGHT", zp, "TOPLEFT", PAGE_W, zy)
+    zy = zy - UI.ROW
     local ZONE_ROWS = 15
     local zoneGrid = Grid(zp, {
         { "Zone Name", x = 8, w = 250 },
@@ -994,6 +1000,9 @@ M.Page = function(_, page)
         local instances = M.db.zoneView == "INSTANCES"
         zoneGrid:SetShown(not instances)
         instGrid:SetShown(instances)
+        junkCheck:SetShown(instances)
+        junkCheck.Refresh()
+        local withJunk = M.db.instJunk ~= false
         if instances then
             -- without a readable copy ID (hidden inside instances on WoW: Forever)
             -- the runs of an instance are numbered in order: #1, #2, ...
@@ -1020,7 +1029,7 @@ M.Page = function(_, page)
                         mod.Clock(r.t),
                         Num(r.k), perKill and Num(perKill) or "-", Num(r.q or 0), Num(r.xp),
                         share and ("%d%%"):format(math.floor(share + 0.5)) or "-",
-                        perHour and Num(perHour) or "-", MoneyGS(r.cp or 0) },
+                        perHour and Num(perHour) or "-", MoneyGS((r.cp or 0) + (withJunk and (r.junk or 0) or 0)) },
                     tip = function(t)
                         t:SetText((r.n or "Instance") .. (r.zn and (" (" .. r.zn .. ")") or ""), 1, 1, 1)
                         local lvOut = r.lvOut
@@ -1030,12 +1039,13 @@ M.Page = function(_, page)
                             .. (lvOut and ("  (Level: %d)"):format(lvOut) or ""), 0.7, 0.7, 0.7, 1, 1, 1)
                         local hours = (r.t or 0) / 3600
                         local function PerHour(v) return hours > 0 and v / hours or nil end
-                        local xpH, cpH = PerHour(r.xp or 0), PerHour(r.cp or 0)
+                        local xpH, cpH, junkH = PerHour(r.xp or 0), PerHour(r.cp or 0), PerHour(r.junk or 0)
                         t:AddDoubleLine("XP gained:", Num(r.xp or 0) .. (xpH and ("  (%s / hr)"):format(Num(xpH)) or ""), 0.7, 0.7, 0.7, 1, 1, 1)
                         if share then
                             t:AddDoubleLine("XP of a level:", ("%.1f%% of level %d"):format(share, r.lvIn), 0.7, 0.7, 0.7, 1, 1, 1)
                         end
                         t:AddDoubleLine("Money gained:", mod.Money(r.cp or 0) .. (cpH and ("  (%s / hr)"):format(mod.Money(cpH)) or ""), 0.7, 0.7, 0.7, 1, 1, 1)
+                        t:AddDoubleLine("Vendor trash:", mod.Money(r.junk or 0) .. (junkH and ("  (%s / hr)"):format(mod.Money(junkH)) or ""), 0.7, 0.7, 0.7, 1, 1, 1)
                         t:AddDoubleLine("Kills:", Num(r.k or 0), 0.7, 0.7, 0.7, 1, 1, 1)
                         t:AddDoubleLine("XP/Kill:", perKill and (Num(perKill) .. ("  (%s XP from kills)"):format(Num(r.kx))) or "-", 0.7, 0.7, 0.7, 1, 1, 1)
                         t:AddDoubleLine("Quests completed:", Num(r.q or 0), 0.7, 0.7, 0.7, 1, 1, 1)

@@ -228,7 +228,7 @@ function mod.ExportCSV(kind, scope, sep)
     elseif kind == "INSTANCES" then
         Row("Account", "Character", "Instance", "Zone", "Instance ID / visit", "Entered", "Exit", "Lvl In", "Lvl Out",
             "Time spent", "Seconds", "Kills", "XP/Kill", "Deaths", "Quests completed", "XP gain", "XP % of level", "XP/hr", "Copper", "Copper/hr",
-            "Entered again")
+            "Entered again", "Vendor trash (copper)")
         local function When(t) return t and date("%Y-%m-%d %H:%M", t) or "" end
         local function Rate(v, t) if (t or 0) < 60 then return "" end return math.floor((v or 0) / (t / 3600) + 0.5) end
         for _, id in ipairs(ids) do
@@ -243,7 +243,7 @@ function mod.ExportCSV(kind, scope, sep)
                             When(r.enter), When(r.leave), r.lvIn or "", r.lvOut or "", mod.Clock(r.t or 0), math.floor(r.t or 0),
                             r.k or 0, mod.RunXPPerKill(r) and math.floor(mod.RunXPPerKill(r) + 0.5) or "", r.d or 0, r.q or 0, r.xp or 0,
                             mod.RunXPShare(r) and ("%.1f"):format(mod.RunXPShare(r)) or "",
-                            Rate(r.xp, r.t), r.cp or 0, Rate(r.cp, r.t), r.again or 0)
+                            Rate(r.xp, r.t), r.cp or 0, Rate(r.cp, r.t), r.again or 0, r.junk or 0)
                     end
                 end
             end

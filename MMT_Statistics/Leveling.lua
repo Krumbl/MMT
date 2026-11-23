@@ -8,6 +8,7 @@
 --   zones[zoneKey] = { n = name, inst = true for instances, t, k, d, q, xp }
 --   runs = { { map = instance map ID, n = name, uid = instance copy ID,
 --              enter, leave, t, k, d, q, xp, cp = money gained,
+--              junk = sell value of the grey items looted (vendor trash),
 --              lvIn / lvOut = character level on entering / leaving,
 --              zn = the zone the character came from (the entrance),
 --              pr = { [profession] = { s, e } } skill-ups in the run }, ... }   newest last, at most 300
@@ -272,6 +273,7 @@ local function MergeRuns(target, src)
     target.d, target.xp = (target.d or 0) + (src.d or 0), (target.xp or 0) + (src.xp or 0)
     target.q = (target.q or 0) + (src.q or 0)
     target.cp = (target.cp or 0) + (src.cp or 0)
+    target.junk = (target.junk or 0) + (src.junk or 0)
     target.again = (target.again or 0) + 1 + (src.again or 0)
     target.leave = src.leave
     target.lvIn = target.lvIn or src.lvIn
@@ -609,6 +611,57 @@ end)
 for _, e in ipairs({ "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }) do
     M:On(e, function() Tick() UpdateZone() end)
 end
+
+-- vendor trash: grey items this character loots ("You receive loot: ..."; also
+-- what the master looter hands over), worth their sell price. Counted for the
+-- instance visit (run.junk) and the live tracker's session (mod.OnJunkLooted).
+local lootPatterns
+local function LootPatterns()
+    if lootPatterns then return lootPatterns end
+    lootPatterns = {}
+    local function Pattern(fmt)
+        if type(fmt) ~= "string" then return end
+        local p = fmt:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
+        p = p:gsub("%%s", "(.+)"):gsub("%%d", "(%%d+)")
+        lootPatterns[#lootPatterns + 1] = "^" .. p .. "$"
+    end
+    Pattern(LOOT_ITEM_SELF_MULTIPLE)   -- "You receive loot: %sx%d."
+    Pattern(LOOT_ITEM_SELF)            -- "You receive loot: %s."
+    return lootPatterns
+end
+
+local function JunkValue(link, count, again)
+    local GetInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    local _, _, quality, _, _, _, _, _, _, _, price = GetInfo(link)
+    if quality == nil and not again then
+        -- not cached yet: once more in a moment
+        local id = tonumber(link:match("item:(%d+)"))
+        if id and C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end
+        C_Timer.After(1, function() mod.JunkLooted(JunkValue(link, count, true), link) end)
+        return 0
+    end
+    if quality ~= 0 or not price or price <= 0 then return 0 end
+    return price * count
+end
+
+function mod.JunkLooted(value, link)
+    if not value or value <= 0 then return end
+    if run and M.db.trackLeveling then run.junk = (run.junk or 0) + value end
+    if mod.OnJunkLooted then mod.OnJunkLooted(value) end
+    M:Debug("vendor trash looted: %s (%s)", mod.Money(value), tostring(link))
+end
+
+M:On("CHAT_MSG_LOOT", function(text)
+    if type(text) ~= "string" or IsSecret(text) then return end
+    for _, p in ipairs(LootPatterns()) do
+        local link, count = text:match(p)
+        if link then
+            if not link:find("|Hitem:") then return end
+            mod.JunkLooted(JunkValue(link, tonumber(count) or 1), link)
+            return
+        end
+    end
+end)
 M:On("PLAYER_ENTERING_WORLD", function(initialLogin, reloadingUi)
     if reloadingUi == true then reloading = true end
     C_Timer.After(1, function() Tick() UpdateZone() reloading = nil end)

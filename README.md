@@ -293,7 +293,8 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   - Zones (a character or the account): favourite zone by time and by kills; per main zone
     (a town counts for its zone) time (hh:mm:ss), NPC kills, quests and XP gain; per
     instance visit Lvl In / Lvl Out, time, kills, XP/Kill (XP from kills / kills), quests, XP gain (incl. quest rewards), XP % (of the XP the entry level needed, also when leveling up inside),
-    XP/hr and money in gold and silver (tooltip: XP/Kill, profession skill-ups and each profession's skill-ups, zone of the entrance, dates, per-hour values, visits in the
+    XP/hr and money in gold and silver ("Include vendor trash in Money", on: plus the sell
+    value of the grey items looted; tooltip: money gained and vendor trash on separate lines, XP/Kill, profession skill-ups and each profession's skill-ups, zone of the entrance, dates, per-hour values, visits in the
     last 60 minutes). The instance ID is hidden from addons on WoW: Forever, so every
     entry is a new row, numbered #1, #2; re-entering an instance left within 3 hours
     without a reset asks whether it is the same ("Same instance" merges the rows); after
@@ -307,7 +308,7 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     Right-click a visit to remove it (e.g. entered and left at once; not the one you are
     in): it still counts for the hourly instance limit. Chat
     notes on entering: new or the same instance, and how many instances the account
-    entered in the last hour (WoW: Forever allows 10).
+    entered in the last hour (WoW: Forever allows 5).
   - Professions (this account only, not shared): five tiles with the current skill of
     the two primary professions and Cooking, Fishing and First Aid ("not learned" when
     missing; an unlearned profession leaves the tiles but its history stays), then a
@@ -322,7 +323,8 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
     forget other accounts, live tracker.
   - Live tracker ("Show live tracker", off): a small window of its own for the character you
     play: session length (since login or /reload), time on the current level (not at max
-    level), XP % (rested %, and "Q %" for the XP of quests ready to turn in), and a table of XP, gold and kills in the session and per hour.
+    level), XP % (rested %, and "Q %" for the XP of quests ready to turn in), and a table of XP, gold, vendor trash (sell value of the grey items looted)
+    and kills in the session and per hour.
     "Reset session" starts a new session in that window only. Lock, font and font size in
     the Settings tab; redrawn at most once a second. "Sync to team" sends it along: on or
     off, position, lock, font and size.

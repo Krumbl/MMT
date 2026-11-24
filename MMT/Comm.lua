@@ -1035,3 +1035,40 @@ ns.On("ADDON_RESTRICTION_STATE_CHANGED", function() C_Timer.After(0.2, Pump) end
 ns.On("ENCOUNTER_END", function() C_Timer.After(0.5, Pump) end)
 ns.Listen("TEAM_CHANGED", function() if ns.ready then ns.BroadcastXP(false) end end)
 ns.Listen("LAYER_CHANGED", function() if ns.ready then ns.BroadcastXP(true) end end)
+
+---------------------------------------------------------------------------
+-- Team loot (for HUF's loot feed, "my MMT team"): each client sends the team
+-- what it loots itself (its own loot lines it can read, also in instances,
+-- where the others' lines are secret); the others' clients hand it on:
+--   MMT.OnTeamLoot(fn)   fn(key, itemString, count) for each team member's loot
+---------------------------------------------------------------------------
+local lootListeners = {}
+function ns.OnTeamLoot(fn) if type(fn) == "function" then lootListeners[#lootListeners + 1] = fn end end
+local SELF_LOOT = { "LOOT_ITEM_SELF_MULTIPLE", "LOOT_ITEM_SELF", "LOOT_ITEM_PUSHED_SELF_MULTIPLE", "LOOT_ITEM_PUSHED_SELF" }
+local selfPats = {}
+local function SelfPattern(key)
+    if selfPats[key] == nil then
+        local fmt = _G[key]
+        selfPats[key] = type(fmt) == "string" and ("^" .. fmt:gsub("[%^%$%(%)%.%[%]%*%+%-%?]", "%%%0")
+            :gsub("%%%d?%$?s", "(.-)"):gsub("%%%d?%$?d", "(%%d+)") .. "$") or false
+    end
+    return selfPats[key]
+end
+ns.On("CHAT_MSG_LOOT", function(text)
+    if not ns.db or type(text) ~= "string" or ns.IsSecret(text) or not IsInGroup() then return end
+    for _, key in ipairs(SELF_LOOT) do
+        local pat = SelfPattern(key)
+        local item, count = pat and text:match(pat)
+        if item then
+            local link = item:match("|H(item:[^|]+)|h")
+            if link then ns.SendToTeam(("LOOT:%d:%s"):format(tonumber(count) or 1, link), true, "BULK") end
+            return
+        end
+    end
+end)
+ns.Listen("TEAM_MESSAGE", function(key, _, text)
+    if type(text) ~= "string" then return end
+    local n, link = text:match("^LOOT:(%d+):(item:.+)$")
+    if not n then return end
+    for _, fn in ipairs(lootListeners) do pcall(fn, key, link, tonumber(n)) end
+end)

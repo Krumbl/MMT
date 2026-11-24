@@ -4,7 +4,7 @@
 local ADDON, ns = ...
 _G.MMT = ns
 ns.title = "MMT"
-ns.version = "1.2.29"
+ns.version = "1.2.30"
 ns.prefix = "MMT"
 ns.LOGO = "Interface\\AddOns\\MMT\\Media\\Logo"   -- the MMT mark (Media/Logo.tga)
 ns.ICON = "Interface\\AddOns\\MMT\\Media\\Icon"   -- the mark on a dark tile (Media/Icon.tga)
@@ -520,14 +520,37 @@ function ns.OnLogin(fn) ns.Listen("LOGIN", fn) end
 -- save(frame) stores the new place the window's own way (the frame already
 -- stands there); right-click on the box opens the settings page. Modules
 -- call it from their login code. Without HUF: nothing.
-function ns.HUFMover(id, label, frame, save, shown, page)
+-- get / set (optional): the window's place, carried in HUF's profile export /
+-- import, so one HUF import places MMT's windows on every client too
+function ns.HUFMover(id, label, frame, save, shown, page, get, set)
     local H = _G.HUF
     if type(H) ~= "table" or type(H.RegisterMover) ~= "function" then return false end
     local ok = pcall(H.RegisterMover, "MMT:" .. id, {
         label = "MMT " .. label, frame = frame, save = save, shown = shown,
         settings = page and function() ns.ToggleConfig(page) end,
+        get = get, set = set,
     })
     return ok
+end
+-- get / set for a window whose place is one { point, relPoint, x, y } in a
+-- settings table: set stores it and moves the window there (out of combat)
+function ns.HUFPlace(tbl, key, frame)
+    local function Frame() return type(frame) == "function" and frame() or frame end
+    local get = function()
+        local p = tbl()[key]
+        return type(p) == "table" and { p[1], p[2], p[3], p[4] } or nil
+    end
+    local set = function(p)
+        if type(p) ~= "table" or type(p[1]) ~= "string" then return end
+        tbl()[key] = { p[1], p[2] or p[1], tonumber(p[3]) or 0, tonumber(p[4]) or 0 }
+        local f = Frame()
+        if f and not InCombatLockdown() then
+            local q = tbl()[key]
+            f:ClearAllPoints()
+            f:SetPoint(q[1], UIParent, q[2], q[3], q[4])
+        end
+    end
+    return get, set
 end
 -- the place a window stands now, as MMT stores it ({ point, relPoint, x, y })
 function ns.PointOf(frame)

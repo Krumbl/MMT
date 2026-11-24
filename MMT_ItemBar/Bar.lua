@@ -270,6 +270,7 @@ MMT.OnRefresh(function() if MMT.ready then mod.Update() end end)
 -- HUF's unlock mode moves the item bar too
 MMT.OnLogin(function()
     if MMT.HUFMover then
-        MMT.HUFMover("itembar", "Item bar", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "mod:ItemBar")
+        local get, set = MMT.HUFPlace(function() return M.db end, "point", f)
+        MMT.HUFMover("itembar", "Item bar", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "mod:ItemBar", get, set)
     end
 end)

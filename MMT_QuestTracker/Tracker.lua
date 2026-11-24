@@ -1177,6 +1177,7 @@ end, 1))
 -- HUF's unlock mode moves the quest tracker too
 MMT.OnLogin(function()
     if MMT.HUFMover then
-        MMT.HUFMover("questtracker", "Quest tracker", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "QuestTracker")
+        local get, set = MMT.HUFPlace(function() return M.db end, "point", f)
+        MMT.HUFMover("questtracker", "Quest tracker", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "QuestTracker", get, set)
     end
 end)

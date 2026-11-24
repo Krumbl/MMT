@@ -741,6 +741,19 @@ MMT.OnLogin(function()
             end
             mod.UpdateLiveTracker()
             if MMT.RefreshConfig then MMT.RefreshConfig() end
-        end, nil, "mod:Statistics")
+        end, nil, "mod:Statistics",
+        -- its place in HUF's profile export: the free place and the dock
+        function()
+            local p = M.db.livePoint
+            return { point = type(p) == "table" and { p[1], p[2], p[3], p[4] } or nil,
+                     dock = M.db.liveDock, win = M.db.liveDockWin }
+        end,
+        function(v)
+            if type(v) ~= "table" then return end
+            if type(v.point) == "table" and type(v.point[1]) == "string" then M.db.livePoint = v.point end
+            if type(v.dock) == "string" then M.db.liveDock = v.dock end
+            if v.win ~= nil then M.db.liveDockWin = v.win end
+            mod.UpdateLiveTracker()
+        end)
     end
 end)

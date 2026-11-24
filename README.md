@@ -140,7 +140,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   routes not flown yet use the times that come with MMT (about 880 Classic routes by taxi
   node ID, from the InFlight addon, MIT License), else the first flight shows no time. "/mmt flights" (or "Export flight times" in the cogwheel) lists them all to copy. The settings page has four tiles: Basics, General
   Look & Feel (with a "Fonts, Bars, Scale, Opacity" side window), Column Visibility & Order
-  and Miscellaneous (Layer Hop). Each of
+  and Miscellaneous (Layer Hop). "Lead window only" (Basics, off): only the lead client
+  shows the window (the FTL leader, else the group leader, else the first online member);
+  the setting is in the profile, so the other clients of the team hide theirs. Each of
   these is a piece, and so is the name: one order left to right (default: Durability, Free
   bag slots, Gold, Name, Level, Bar value, Rested XP), the bar behind the whole row. Switch
   pieces on or off (the name is always shown) and drag them into place in the Info Window
@@ -482,6 +484,9 @@ team list. Closing it marks it as seen; `/mmt setup` opens it again.
   Zone > [Level] Quest > Objective > one row per team member with their progress
   ("3/8", "done", "completed" when that character already turned it in, "not on quest").
   Elite and group quests show a "+" after the level ([32+]), as in the game's quest log.
+  "Lead window only" (off by default): only the lead client shows the tracker (the FTL
+  leader, else the group leader, else the first online member); the other clients hide it
+  and keep the Blizzard tracker hidden too.
   A quest done on every character that has it shows only its name with "(Ready)", so
   the tracker gets shorter the more quests are ready to turn in ("(Ready for you)" while
   others still work on it). The same for a single objective: one of several monsters to

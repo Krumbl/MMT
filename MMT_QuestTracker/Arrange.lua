@@ -346,7 +346,7 @@ M:On("PLAYER_ENTERING_WORLD", ZoneChanged)
 
 local last
 local function Tick()
-    if not (M.enabled and M.db.show and mod.NeedsPosition() and mod.BuildEntries) then return end
+    if not (mod.TrackerWanted and mod.TrackerWanted() and mod.NeedsPosition() and mod.BuildEntries) then return end
     local p = PlayerWorld()
     if not p then return end
     if last and last.cont == p.cont and Dist(last.x, last.y, p.x, p.y) < MOVED_YARDS then return end

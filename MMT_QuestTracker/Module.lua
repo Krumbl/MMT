@@ -44,6 +44,7 @@ local M = MMT.NewModule({
 
         -- tracker
         show          = true,
+        leadOnly      = false,    -- shown only on the lead client (FTL leader, else group leader)
         hideBlizzard  = true,
         hideOthers    = true,     -- Questie's / EllesmereUI's quest tracker (Tracker.lua)
         locked        = false,

@@ -790,9 +790,15 @@ local function Place(row, cols, total, nameIndex, shift)
     end
 end
 
+-- on, and on this client (option xp.leadOnly: only the lead client, see ns.IsNoticeLeaderHere)
+local function Wanted()
+    local x = ns.db.xp
+    return x.enabled and not (x.leadOnly and not ns.IsNoticeLeaderHere())
+end
+
 local function Update()
     local x = ns.db.xp
-    if not x.enabled or not ns.ready then f:Hide() return end
+    if not ns.ready or not Wanted() then f:Hide() return end
     ns.UpdateOwnStatus()
     local list = Members()
     if #list == 0 then f:Hide() return end
@@ -1068,6 +1074,7 @@ ns.OnRefresh(HideOtherXP)
 ns.OnLogin(function() C_Timer.NewTicker(0.5, HideOtherXP) end)
 ns.Listen("STATUS_CHANGED", ns.Coalesce(Update, 0.1))   -- bursts (follow spam, many heartbeats): one redraw
 ns.Listen("TEAM_CHANGED", Update)
+ns.On("PARTY_LEADER_CHANGED", function() if ns.ready then Update() end end)   -- lead window only: the lead moved
 ns.Listen("PROFILE_CHANGED", function() if ns.ready then Layout() end end)
 ns.OnLogin(function()
     C_Timer.NewTicker(5, Update) -- drops members whose heartbeat stopped, updates phase tags
@@ -1077,5 +1084,5 @@ end)
 ns.OnLogin(function()
     local get, set = ns.HUFPlace(function() return ns.db.xp end, "point", f)
     ns.HUFMover("info", "Info window", f, function(fr) ns.db.xp.point = ns.PointOf(fr) end,
-        function() return ns.db.xp.enabled end, "xp", get, set)
+        function() return Wanted() end, "xp", get, set)
 end)

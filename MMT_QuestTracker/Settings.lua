@@ -40,9 +40,11 @@ M.Page = function(_, page)
     -- Tracker: Quest Tracker + Content (left), Look (right)
     -------------------------------------------------------------------------
     local T = tabs.tracker
-    local QT_H = 42 + 6 * UI.ROW + 10
+    local QT_H = 42 + 7 * UI.ROW + 10
     local _, L = Tile(T, 0, 0, TILE_W, QT_H, "Quest Tracker", "Interface\\Icons\\INV_Misc_Book_09")
     L:Check("Show quest tracker", Opt("show"))
+    local glo, slo = Opt("leadOnly")
+    L:Check("Lead window only", glo, slo, "Only the lead client shows the tracker: the FTL leader, else the group leader. The other clients of the team hide it (the Blizzard tracker stays hidden there too).")
     local ghb, shb = Opt("hideBlizzard")
     L:Check("Hide the Blizzard quest tracker", ghb, shb, "Comes back when you switch this off or disable the module (outside combat).")
     local gho, sho = Opt("hideOthers")

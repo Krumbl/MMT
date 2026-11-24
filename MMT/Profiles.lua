@@ -19,6 +19,7 @@ ns.defaults = {
         enabled     = true,
         locked      = false,
         showSelf    = true,
+        leadOnly    = false,     -- shown only on the lead client (FTL leader, else group leader)
         showLevel   = true,
         clickThrough = false,    -- mouse passes through (no mouseover details)
         showRested  = true,

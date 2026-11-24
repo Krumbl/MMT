@@ -874,9 +874,15 @@ local function MaxQuests()
     return MAX_QUESTS or 25
 end
 
-local function Draw()
+-- on, and on this client (option leadOnly: only the lead client, see MMT.IsNoticeLeaderHere)
+function mod.TrackerWanted()
     local cfg = M.db
-    if not (M.enabled and cfg.show and MMT.ready) then f:Hide() return end
+    return M.enabled and cfg.show and not (cfg.leadOnly and not MMT.IsNoticeLeaderHere())
+end
+
+local function Draw()
+    if not (MMT.ready and mod.TrackerWanted()) then f:Hide() return end
+    local cfg = M.db
     local entries, zones = mod.BuildEntries()
     mod.drawnSig = mod.orderSig
     local ownCount = #(mod.ownOrder or {})
@@ -1158,6 +1164,7 @@ end)
 M:Listen("QUESTS_CHANGED", mod.Redraw)
 M:Listen("STATUS_CHANGED", MMT.Coalesce(function() mod.Redraw() end, 0.25))   -- one redraw per burst
 M:Listen("TEAM_CHANGED", mod.Redraw)
+M:On("PARTY_LEADER_CHANGED", function() if MMT.ready then mod.Redraw() end end)   -- lead window only: the lead moved
 MMT.OnLogin(function()
     C_Timer.NewTicker(10, function() if M.enabled then mod.Redraw() end end) -- members going offline
     -- a timed quest: the time left counts down every second
@@ -1178,6 +1185,7 @@ end, 1))
 MMT.OnLogin(function()
     if MMT.HUFMover then
         local get, set = MMT.HUFPlace(function() return M.db end, "point", f)
-        MMT.HUFMover("questtracker", "Quest tracker", f, function(fr) M.db.point = MMT.PointOf(fr) end, nil, "QuestTracker", get, set)
+        MMT.HUFMover("questtracker", "Quest tracker", f, function(fr) M.db.point = MMT.PointOf(fr) end,
+            function() return mod.TrackerWanted() end, "QuestTracker", get, set)
     end
 end)
